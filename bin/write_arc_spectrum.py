@@ -134,8 +134,18 @@ for lamp in lamps :
         if not found :
             print "line at %f in lamp %s not found in list of known bright lines"%(w,lamp)
                 
+    # might be some duplicates ...
+    matched_lamp_line_wave=np.array(matched_lamp_line_wave)
+    matched_lamp_line_flux=np.array(matched_lamp_line_flux)
+    unique_wave=np.unique(matched_lamp_line_wave)
+    unique_flux=np.zeros((unique_wave.size))
+    for i in xrange(unique_wave.size) :
+        j=np.where(matched_lamp_line_wave==unique_wave[i])[0]
+        unique_flux[i]=np.mean(matched_lamp_line_flux[j])
+        
     
-
+    matched_lamp_line_wave = unique_wave
+    matched_lamp_line_flux = unique_flux
 
     if line_wave is None :
         line_wave=lamp_line_wave
