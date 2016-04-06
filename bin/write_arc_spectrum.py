@@ -169,6 +169,9 @@ integral_to_maxval = np.median(integral_to_maxval)
 print "integral_to_maxval = ",integral_to_maxval
 print "scale              = ",args.scale
 
+matched_line_wave=np.array(matched_line_wave)
+matched_line_flux=np.array(matched_line_flux)
+
 matched_line_flux *= integral_to_maxval # now estimate of the integrated flux in lines
 matched_line_flux *= args.scale # arbitrary scale to get something decent
 
