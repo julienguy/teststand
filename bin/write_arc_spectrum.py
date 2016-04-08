@@ -97,14 +97,10 @@ for lamp in lamps :
     med_peak=np.median(flux[peaks])
     threshold=args.threshold*(med_peak-med_all)+med_all
     peaks=np.where((diff_plus>0)&(diff_minus>0)&(ii>margin)&(ii<flux.size-margin)&(flux>threshold))[0]
-    
+        
     if args.plot :
         import pylab
         pylab.plot(wave,flux,c="b",alpha=0.3)
-        #pylab.plot(wave,med_all*np.ones(wave.shape))
-        #pylab.plot(wave,threshold*np.ones(wave.shape))
-        #pylab.plot(wave[peaks],flux[peaks],"o")
-        #pylab.show()
 
     lamp_line_wave=wave[peaks]
     lamp_line_flux=flux[peaks]
