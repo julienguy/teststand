@@ -9,9 +9,9 @@ import os.path
 def read_known_lines() :
     # find data file in this repo
     current_file_path=os.path.realpath(__file__)
-    known_lines_filename="%s/../data/main-peaks.data"%os.path.dirname(current_file_path)
+    known_lines_filename="%s/../data/main-peaks-vacuum.data"%os.path.dirname(current_file_path)
     if not os.path.isfile(known_lines_filename) :
-        print "failed to find file main-peaks.data from program path '%s'"%current_file_path
+        print "failed to find file main-peaks-vacuum.data from program path '%s'"%current_file_path
         print "was trying to open '%s'"%known_lines_filename
         sys.exit(12)
     file=open(known_lines_filename)

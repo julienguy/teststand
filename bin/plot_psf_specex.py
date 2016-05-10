@@ -9,6 +9,7 @@ import desispec.io
 #from specter.psf.gausshermite import GaussHermitePSF
 import sys
 import argparse
+import string
 
 def u(wave,wavemin,wavemax) :
     return 2.*(wave-wavemin)/(wavemax-wavemin)-1.
@@ -32,36 +33,41 @@ if args.arm is not None :
         sys.exit(12)
 
 psf=pyfits.open(args.psf)
+params=psf[1].data["PARAM"]
+for i in range(params.size) :
+    params[i]=string.strip(params[i])
 
-#print psf[0].header
-#print psf.info()
-wavemin=psf[0].header["WAVEMIN"]
-wavemax=psf[0].header["WAVEMAX"]
+xindex= np.where(params=="X")[0][0]
+yindex= np.where(params=="Y")[0][0]
+wavemin=psf[1].data["WAVEMIN"][xindex]
+wavemax=psf[1].data["WAVEMAX"][xindex]
+if psf[1].data["WAVEMIN"][yindex] != wavemin :
+    print "unexpected difference"
+    sys.exit(12)
+
+fibermin=int(psf[1].header["FIBERMIN"])
+fibermax=int(psf[1].header["FIBERMAX"])
+legdeg=psf[1].header["LEGDEG"]
+table=psf[1].data
+xcoef=table["COEFF"][xindex]
+ycoef=table["COEFF"][yindex]
+
+
 print "wavemin,wavemax=",wavemin,wavemax
-xcoef=psf[0].data
-ycoef=psf[1].data
-sigma=psf[2].data
-print xcoef.shape
 nspecs=xcoef.shape[0]
 
 wave=np.linspace(wavemin,wavemax,100)
 
 pylab.figure()
-a0=pylab.subplot(1,3,1)
-a1=pylab.subplot(1,3,2)
-a2=pylab.subplot(1,3,3)
+a0=pylab.subplot(1,1,1)
 for spec in range(nspecs) :
     x = legval(u(wave,wavemin,wavemax), xcoef[spec])
     y = legval(u(wave,wavemin,wavemax), ycoef[spec])
     a0.plot(x,y)
-    a1.plot(y,wave)
+    
 a0.set_xlabel("X CCD")
 a0.set_ylabel("Y CCD")
-a1.set_xlabel("Y CCD")
-a1.set_ylabel("Wavelength [A]")
-a2.plot(sigma)
-a2.set_xlabel("spec #")
-a2.set_ylabel("PSF sigma")
+
 
 if args.fibermap is not None :
     
