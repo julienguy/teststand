@@ -44,17 +44,23 @@ if args.air :
 nist_list=desispec.bootcalib.load_arcline_list(camera="all", vacuum=vacuum, lamps=None)
 nist_ion=np.array(nist_list["Ion"])
 nist_wave=np.array(nist_list["wave"])
+nist_intensity=np.array(nist_list["RelInt"])
 
 if args.subset :
     subset_air_wave=[]
     subset_ion=[]
+    subset_intensity=[]
     ifile=open(args.subset)
     for line in ifile.readlines() :
         if line[0]=="#" :
             continue
         vals=line.strip().split()
-        subset_air_wave.append(float(vals[0]))
-        subset_ion.append((vals[1]))
+        if len(vals)==3 :
+            subset_air_wave.append(float(vals[0]))
+            subset_ion.append((vals[1]))
+            subset_intensity.append((float(vals[2])))
+        else :
+            print "WARNING IGNORE LINE '%s'"%line.strip()
     ifile.close()
 
     subset_air_wave=np.array(subset_air_wave)
@@ -67,7 +73,8 @@ if args.subset :
     # match with NIST line list
     nist_subset_wave=[]
     nist_subset_ion=[]
-    for wave,ion in zip(subset_wave,subset_ion) :
+    nist_subset_intensity=[]
+    for wave,ion,intensity in zip(subset_wave,subset_ion,subset_intensity) :
         ok=np.where(nist_ion==ion)[0]
         if ok.size==0 :
             print "no ",ion
@@ -80,14 +87,18 @@ if args.subset :
             continue
         nist_subset_wave.append(nwave)
         nist_subset_ion.append(ion)
+        nist_subset_intensity.append(intensity)
     nist_subset_wave=np.array(nist_subset_wave)
     nist_subset_ion=np.array(nist_subset_ion)
+    nist_subset_intensity=np.array(nist_subset_intensity)
     
     wave=nist_subset_wave
     ion=nist_subset_ion
+    intensity=nist_subset_intensity
 else :
     wave=nist_wave
     ion=nist_ion
+    intensity=nist_intensity
 
 sort=np.argsort(wave)
 ofile=open(args.outfile,"w")
@@ -96,11 +107,11 @@ if args.subset :
     ofile.write("# using subsample of lines in %s\n"%args.subset)
 
 if vacuum :
-    ofile.write("# WAVE (A, IN VACUUM) ION\n")
+    ofile.write("# WAVE (A, IN VACUUM) ION INTENSITY(RELATIVE)\n")
 else :
-    ofile.write("# WAVE (A, IN AIR) ION\n")
+    ofile.write("# WAVE (A, IN AIR) ION INTENSITY(RELATIVE)\n")
 for line in sort :
-    ofile.write("%f %s\n"%(wave[line],ion[line]))
+    ofile.write("%f %s %f\n"%(wave[line],ion[line],intensity[line]))
 ofile.close()
 
 

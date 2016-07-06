@@ -1,0 +1,7 @@
+* manual edit of vendor-peaks-manual-edits.data
+* then :
+write_main_peaks.py -o main-peaks-vacuum.data --subset vendor-peaks-manual-edits.data
+write_main_peaks.py --air -o main-peaks-air.data --subset vendor-peaks-manual-edits.data
+write_main_peaks.py -o all-peaks-vacuum.data
+write_main_peaks.py --air -o all-peaks-air.data
+
