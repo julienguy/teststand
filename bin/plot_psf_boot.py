@@ -18,20 +18,21 @@ parser.add_argument('-p','--psf', type = str, default = None, required = True,
                     help = 'path of psf boot file')
 parser.add_argument('-f','--fibermap',type = str, default = None, required = False,
                     help = 'path to fibermap file to compare with truth for simulations')
-parser.add_argument('-a','--arm',type = str, default = None, required = False,
-                    help = 'camera arm : b, r or z; to compare with truth for simulations')
-args        = parser.parse_args()
+parser.add_argument('--fig',type = str, default = None, required = False,
+                    help = 'figure filename')
+parser.add_argument('--batch', action = 'store_true',help="do not display result")
+parser.add_argument('--sim', action = 'store_true',help="compare with simulation truth")
 
-if args.fibermap is not None :    
-    if args.arm is None :
-        print "need to know which camera arm b, r or z"
-        sys.exit(12)
-if args.arm is not None :
-    if not args.arm in ['b','r','z'] :
-        print "camera arm must be b, r or z"
-        sys.exit(12)
+
+args = parser.parse_args()
+
 
 psf=pyfits.open(args.psf)
+cam=psf[0].header["CAMERA"].strip()
+arm=cam[0]
+if not arm in ['b','r','z'] :
+    print "camera arm must be b, r or z, and read '%s' in psf header"%arm
+    sys.exit(12)
 
 #print psf[0].header
 #print psf.info()
@@ -41,16 +42,22 @@ print "wavemin,wavemax=",wavemin,wavemax
 xcoef=psf[0].data
 ycoef=psf[1].data
 sigma=psf[2].data
-print xcoef.shape
-nspecs=xcoef.shape[0]
+print "xcoef.shape=",xcoef.shape
+nspec=xcoef.shape[0]
 
 wave=np.linspace(wavemin,wavemax,100)
 
-pylab.figure()
-a0=pylab.subplot(1,3,1)
-a1=pylab.subplot(1,3,2)
-a2=pylab.subplot(1,3,3)
-for spec in range(nspecs) :
+fig = pylab.figure()
+nx=3
+if args.sim  :
+    ny=2
+else :
+    ny=1
+pcount=1
+a0=pylab.subplot(ny,nx,pcount) ; pcount +=1
+a1=pylab.subplot(ny,nx,pcount) ; pcount +=1
+a2=pylab.subplot(ny,nx,pcount) ; pcount +=1
+for spec in range(nspec) :
     x = legval(u(wave,wavemin,wavemax), xcoef[spec])
     y = legval(u(wave,wavemin,wavemax), ycoef[spec])
     a0.plot(x,y)
@@ -63,18 +70,15 @@ a2.plot(sigma)
 a2.set_xlabel("spec #")
 a2.set_ylabel("PSF sigma")
 
-if args.fibermap is not None :
+if args.sim :
     
-    if args.arm is None :
-        print "need to know which camera arm b, r or z"
-        sys.exit(12)
-    
-    print "fibermap=",args.fibermap
-    print "camera arm=",args.arm
-    
-    fm, fmhdr = desispec.io.read_fibermap(args.fibermap, header=True)
-    fibers = fm["FIBER"][:nspecs]
-    psf = desimodel.io.load_psf(args.arm)
+    if args.fibermap is not None :
+        fm, fmhdr = desispec.io.read_fibermap(args.fibermap, header=True)
+        fibers = fm["FIBER"][:nspec]
+    else :
+        fibers = np.arange(nspec)
+        print "assuming it's the first %d fibers in the sims (if wrong, rerun with --fibermap option)"%nspec
+    psf = desimodel.io.load_psf(arm)
     
 
 
@@ -89,10 +93,11 @@ if args.fibermap is not None :
     ywavemin_truth=simpix[2].header["WAVEMIN"]
     ywavemax_truth=simpix[2].header["WAVEMAX"]
     """
-    fig = pylab.figure()
-    a0=pylab.subplot(1,2,1)
-    a1=pylab.subplot(1,2,2)
+    
+    a0=pylab.subplot(ny,nx,pcount) ; pcount +=1
+    a1=pylab.subplot(ny,nx,pcount) ; pcount +=1
     for spec,fiber in enumerate(fibers) : 
+        print "spec #%d fiber #%d"%(spec,fiber)
         x = legval(u(wave,wavemin,wavemax), xcoef[spec])
         y = legval(u(wave,wavemin,wavemax), ycoef[spec])
         x_truth = psf.x(int(fiber),wave)
@@ -103,5 +108,10 @@ if args.fibermap is not None :
     a0.set_ylabel("delta X CCD")
     a1.set_xlabel("Wavelength [A]")
     a1.set_ylabel("delta Y CCD")
-    fig.savefig(args.psf.replace(".fits",".png"))
-pylab.show()
+
+if args.fig is not None :
+    fig.savefig(args.fig)
+
+if not args.batch :
+    pylab.show()
+

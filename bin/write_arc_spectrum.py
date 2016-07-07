@@ -34,32 +34,16 @@ wave=np.array(wave)
 ion=np.array(ion)
 intensity=np.array(intensity)
 
-thru=[]
-for channel in ['b','r','z'] :
-    filename=os.path.join(os.environ['DESIMODEL'],'data','throughput','thru-{0}.fits'.format(channel))
-    h=fits.open(filename)
-    channel_thru=np.interp(wave,h['THROUGHPUT'].data["wavelength"],h['THROUGHPUT'].data['throughput'],left=0,right=0)
-    thru.append(channel_thru)
-
-thru=np.array(thru)
-# because of the current simulation setup, need to
-# have a single electron value for all channels
-throughput=np.zeros((wave.size))
-for i in range(wave.size) :
-    ok=np.where(thru[:,i]>0)[0]
-    if ok.size>0 : 
-        throughput[i]=np.mean(thru[ok,i])
-intensity *= throughput
 ok=np.where(intensity>0)[0]
 wave=wave[ok]
 ion=ion[ok]
 intensity=intensity[ok]
-intensity *= 100000./np.max(intensity)
+intensity *= 1000./np.max(intensity)
 
 # write this
 cols=[]
 cols.append(fits.Column(name='WAVE', format='D', array=wave))
-cols.append(fits.Column(name='ELECTRONS', format='D', array=intensity))
+cols.append(fits.Column(name='PHOTONS', format='D', array=intensity))
 cols.append(fits.Column(name='ION', format='8A', array=ion))
 cols = fits.ColDefs(cols)
 hdulist=fits.HDUList([fits.PrimaryHDU()])
