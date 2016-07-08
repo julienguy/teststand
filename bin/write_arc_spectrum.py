@@ -38,7 +38,7 @@ ok=np.where(intensity>0)[0]
 wave=wave[ok]
 ion=ion[ok]
 intensity=intensity[ok]
-intensity *= 1000./np.max(intensity)
+intensity *= 100000./np.max(intensity)
 
 # write this
 cols=[]
