@@ -19,26 +19,25 @@ parser.add_argument('-p','--psf', type = str, default = None, required = True,
                     help = 'path of psf boot file')
 parser.add_argument('-f','--fibermap',type = str, default = None, required = False,
                     help = 'path to fibermap file to compare with truth for simulations')
-parser.add_argument('-a','--arm',type = str, default = None, required = False,
-                    help = 'camera arm : b, r or z; to compare with truth for simulations')
+parser.add_argument('--fig',type = str, default = None, required = False,
+                    help = 'figure filename')
+parser.add_argument('--batch', action = 'store_true',help="do not display result")
+parser.add_argument('--sim', action = 'store_true',help="compare with simulation truth")
 args        = parser.parse_args()
 
-if args.fibermap is not None :    
-    if args.arm is None :
-        print "need to know which camera arm b, r or z"
-        sys.exit(12)
-if args.arm is not None :
-    if not args.arm in ['b','r','z'] :
-        print "camera arm must be b, r or z"
-        sys.exit(12)
-
 psf=pyfits.open(args.psf)
+cam=psf[1].header["CAMERA"].strip().replace("'","").strip()
+arm=cam[0]
+print "CAMERA=",cam,"ARM=",arm
+
 params=psf[1].data["PARAM"]
 for i in range(params.size) :
     params[i]=string.strip(params[i])
 
 xindex= np.where(params=="X")[0][0]
 yindex= np.where(params=="Y")[0][0]
+ghsigx_index= np.where(params=="GHSIGX")[0][0]
+ghsigy_index= np.where(params=="GHSIGY")[0][0]
 wavemin=psf[1].data["WAVEMIN"][xindex]
 wavemax=psf[1].data["WAVEMAX"][xindex]
 if psf[1].data["WAVEMIN"][yindex] != wavemin :
@@ -51,53 +50,83 @@ legdeg=psf[1].header["LEGDEG"]
 table=psf[1].data
 xcoef=table["COEFF"][xindex]
 ycoef=table["COEFF"][yindex]
+ghsigx_coef=table["COEFF"][ghsigx_index]
+ghsigy_coef=table["COEFF"][ghsigy_index]
 
 
 print "wavemin,wavemax=",wavemin,wavemax
-nspecs=xcoef.shape[0]
+nspec=xcoef.shape[0]
 
 wave=np.linspace(wavemin,wavemax,100)
+refwave=int(np.mean(wave))
 
-pylab.figure()
-a0=pylab.subplot(1,1,1)
-for spec in range(nspecs) :
+fig=pylab.figure()
+
+nx=3
+if args.sim :
+    ny=3
+else :
+    ny=2
+
+pcount=1
+a0=pylab.subplot(ny,nx,pcount) ; pcount+=1
+a1=pylab.subplot(ny,nx,pcount) ; pcount+=1
+a2=pylab.subplot(ny,nx,pcount) ; pcount+=1
+a3=pylab.subplot(ny,nx,pcount) ; pcount+=1
+a4=pylab.subplot(ny,nx,pcount) ; pcount+=1
+
+for spec in range(nspec) :
     x = legval(u(wave,wavemin,wavemax), xcoef[spec])
     y = legval(u(wave,wavemin,wavemax), ycoef[spec])
     a0.plot(x,y)
-    
+    ghsigx = legval(u(wave,wavemin,wavemax), ghsigx_coef[spec])
+    a1.plot(wave,ghsigx)
+    ghsigy = legval(u(wave,wavemin,wavemax), ghsigy_coef[spec])
+    a2.plot(wave,ghsigy)
+    ghsigx = legval(u(refwave,wavemin,wavemax), ghsigx_coef[spec])
+    a3.plot(spec,ghsigx,"o")
+    ghsigy = legval(u(refwave,wavemin,wavemax), ghsigy_coef[spec])
+    a4.plot(spec,ghsigy,"o")
+
+a0.set_xlabel("X CCD")
+a0.set_ylabel("Y CCD")
+
+a1.set_xlabel("Wavelength [A]")
+a1.set_ylabel("Cross-dispersion sigma (pixels)")
+
+a2.set_xlabel("Wavelength [A]")
+a2.set_ylabel("Dispersion/resolution sigma (pixels)")
+
+a3.set_xlabel("Fiber #, @%dA"%refwave)
+a3.set_ylabel("Cross-dispersion sigma (pixels)")
+
+a4.set_xlabel("Fiber #, @%dA"%refwave)
+a4.set_ylabel("Dispersion/resolution sigma (pixels)")
+
+
 a0.set_xlabel("X CCD")
 a0.set_ylabel("Y CCD")
 
 
-if args.fibermap is not None :
-    
-    if args.arm is None :
-        print "need to know which camera arm b, r or z"
-        sys.exit(12)
-    
-    print "fibermap=",args.fibermap
-    print "camera arm=",args.arm
-    
-    fm, fmhdr = desispec.io.read_fibermap(args.fibermap, header=True)
-    fibers = fm["FIBER"][:nspecs]
-    psf = desimodel.io.load_psf(args.arm)
-    
 
 
-    """
-    print "loading simpix traces",args.simpix
-    simpix=pyfits.open(args.simpix)
-    simpix.info()
-    xcoef_truth=simpix[1].data
-    xwavemin_truth=simpix[1].header["WAVEMIN"]
-    xwavemax_truth=simpix[1].header["WAVEMAX"]
-    ycoef_truth=simpix[2].data
-    ywavemin_truth=simpix[2].header["WAVEMIN"]
-    ywavemax_truth=simpix[2].header["WAVEMAX"]
-    """
-    fig = pylab.figure()
-    a0=pylab.subplot(1,2,1)
-    a1=pylab.subplot(1,2,2)
+if args.sim :
+    
+    
+    if args.fibermap is not None :
+        fm, fmhdr = desispec.io.read_fibermap(args.fibermap, header=True)
+        fibers = fm["FIBER"][:nspec]
+    else :
+        fibers = np.arange(nspec)
+        print "assuming it's the first %d fibers in the sims (if wrong, rerun with --fibermap option)"%nspec
+    
+    psf = desimodel.io.load_psf(arm)
+    
+
+    
+    a0=pylab.subplot(ny,nx,pcount) ; pcount+=1
+    a1=pylab.subplot(ny,nx,pcount) ; pcount+=1
+    
     for spec,fiber in enumerate(fibers) : 
         x = legval(u(wave,wavemin,wavemax), xcoef[spec])
         y = legval(u(wave,wavemin,wavemax), ycoef[spec])
@@ -109,5 +138,11 @@ if args.fibermap is not None :
     a0.set_ylabel("delta X CCD")
     a1.set_xlabel("Wavelength [A]")
     a1.set_ylabel("delta Y CCD")
-    fig.savefig(args.psf.replace(".fits",".png"))
-pylab.show()
+    
+
+if args.fig is not None :
+    fig.savefig(args.fig)
+
+if not args.batch :
+    pylab.show()
+
