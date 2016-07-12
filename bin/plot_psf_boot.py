@@ -45,16 +45,22 @@ print xcoef.shape
 nspecs=xcoef.shape[0]
 
 wave=np.linspace(wavemin,wavemax,100)
+mwave=np.mean(wave)
 
 pylab.figure()
-a0=pylab.subplot(1,3,1)
-a1=pylab.subplot(1,3,2)
-a2=pylab.subplot(1,3,3)
+a0=pylab.subplot(2,2,1)
+a1=pylab.subplot(2,2,2)
+a2=pylab.subplot(2,2,3)
+a3=pylab.subplot(2,2,4)
+mx=[]
 for spec in range(nspecs) :
     x = legval(u(wave,wavemin,wavemax), xcoef[spec])
     y = legval(u(wave,wavemin,wavemax), ycoef[spec])
     a0.plot(x,y)
     a1.plot(y,wave)
+    mx.append(legval(u(mwave,wavemin,wavemax), xcoef[spec]))
+
+
 a0.set_xlabel("X CCD")
 a0.set_ylabel("Y CCD")
 a1.set_xlabel("Y CCD")
@@ -62,6 +68,12 @@ a1.set_ylabel("Wavelength [A]")
 a2.plot(sigma)
 a2.set_xlabel("spec #")
 a2.set_ylabel("PSF sigma")
+mx=np.array(mx)
+dx=(mx-np.roll(mx,1))[1:]
+print dx[:12]
+a3.plot(dx,"o-")
+a3.set_xlabel("spec #")
+a3.set_ylabel("Delta X CCD @%dA"%int(mwave))
 
 if args.fibermap is not None :
     
