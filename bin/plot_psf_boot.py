@@ -59,6 +59,10 @@ pcount=1
 a0=pylab.subplot(ny,nx,pcount) ; pcount +=1
 a1=pylab.subplot(ny,nx,pcount) ; pcount +=1
 a2=pylab.subplot(ny,nx,pcount) ; pcount +=1
+a3=pylab.subplot(ny,nx,pcount) ; pcount +=1
+
+
+mx=[]
 for spec in range(nspec) :
 
     x = legval(u(wave,wavemin,wavemax), xcoef[spec])
