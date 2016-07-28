@@ -28,6 +28,7 @@ ffile=pyfits.open(args.infile)
 hdu=ffile[args.hdu]
 header=hdu.header
 header["EXTNAME"]=args.camera.upper()
+header["CAMERA"]=args.camera.upper()
 
 if args.camera.lower().find("b")==0 :
     print "warning, from sims ..."
