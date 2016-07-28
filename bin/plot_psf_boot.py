@@ -43,7 +43,9 @@ xcoef=psf[0].data
 ycoef=psf[1].data
 sigma=psf[2].data
 print "xcoef.shape=",xcoef.shape
+print "ycoef.shape=",ycoef.shape
 nspec=xcoef.shape[0]
+print "nspec=",nspec
 
 wave=np.linspace(wavemin,wavemax,100)
 mwave=np.mean(wave)
@@ -51,10 +53,8 @@ mwave=np.mean(wave)
 
 fig = pylab.figure()
 nx=3
-if args.sim  :
-    ny=2
-else :
-    ny=1
+ny=2
+
 pcount=1
 a0=pylab.subplot(ny,nx,pcount) ; pcount +=1
 a1=pylab.subplot(ny,nx,pcount) ; pcount +=1
