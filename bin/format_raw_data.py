@@ -53,25 +53,17 @@ if args.camera.lower().find("b")==0 :
     header["BIASSEC4"]='[2103:2152,2049:4096]'
     header["CCDSEC4"]='[2049:4096,2049:4096]'
 elif args.camera.lower().find("r")==0: 
+    
     print "tuned to first teststand image"
     
-    '''
-    parse keywords like BIASSECB='[7:56,51:4146]' into python slices
-
-    python and FITS have almost opposite conventions,
-      * FITS 1-indexed vs. python 0-indexed
-      * FITS upperlimit-inclusive vs. python upperlimit-exclusive
-      * FITS[x,y] vs. python[y,x]
-
-    i.e. BIASSEC2='[7:56,51:4146]' -> (slice(50,4146), slice(6,56))
-    '''
     
-    # [x:x,y:y]
-
-    header["GAIN1"]=1.0
-    header["GAIN2"]=1.0
-    header["GAIN3"]=1.0
-    header["GAIN4"]=1.0
+    for a in range(1,5) :
+        key="GAIN%d"%a
+        if not key in header :
+            header[key]=1.
+            print "WARNING !! MADE UP",key,header[key]
+           
+    
     
     header["DATASEC1"]='[10:2064,4:2065]'
     d1xmin,d1xmax,d1ymin,d1ymax = parse_sec_keyword(header["DATASEC1"])
@@ -153,6 +145,9 @@ elif args.camera.lower().find("z")==0:
     header["DATASEC4"]='[2165:4221,2065:4128]'
     header["BIASSEC4"]='[2115:2164,2065:4128]'
     header["CCDSEC4"]='[2058:4114,2065:4128]'
+
+# flip image ????
+hdu.data = hdu.data[::-1,:]
 
 ffile.writeto(args.outfile,clobber=True)
 print "wrote",args.outfile
