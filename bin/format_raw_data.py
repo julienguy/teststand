@@ -30,38 +30,12 @@ header=hdu.header
 header["EXTNAME"]=args.camera.upper()
 header["CAMERA"]=args.camera.upper()
 
-if args.camera.lower().find("b")==0 :
-    print "warning, from sims ..."
-    header["GAIN1"]=1.0
-    header["GAIN2"]=1.0
-    header["GAIN3"]=1.0
-    header["GAIN4"]=1.0
-    header["PRESEC1"]='[1:4,1:2048]'
-    header["DATASEC1"]='[5:2052,1:2048]'
-    header["BIASSEC1"]='[2053:2102,1:2048]'
-    header["CCDSEC1"]='[1:2048,1:2048]'
-    header["PRESEC2"]='[4201:4204,1:2048]'
-    header["DATASEC2"]='[2153:4200,1:2048]'
-    header["BIASSEC2"]='[2103:2152,1:2048]'
-    header["CCDSEC2"]='[2049:4096,1:2048]'
-    header["PRESEC3"]='[1:4,2049:4096]'
-    header["DATASEC3"]='[5:2052,2049:4096]'
-    header["BIASSEC3"]='[2053:2102,2049:4096]'
-    header["CCDSEC3"]='[1:2048,2049:4096]'
-    header["PRESEC4"]='[4201:4204,2049:4096]'
-    header["DATASEC4"]='[2153:4200,2049:4096]'
-    header["BIASSEC4"]='[2103:2152,2049:4096]'
-    header["CCDSEC4"]='[2049:4096,2049:4096]'
-elif args.camera.lower().find("r")==0: 
+if args.camera.lower().find("r")==0: 
     
     print "tuned to first teststand image"
     
     
-    for a in range(1,5) :
-        key="GAIN%d"%a
-        if not key in header :
-            header[key]=1.
-            print "WARNING !! MADE UP",key,header[key]
+    
            
     
     
@@ -95,59 +69,49 @@ elif args.camera.lower().find("r")==0:
     header["BIASSEC4"]='[%d:%d,%d:%d]'%(b2xmin,b2xmax,d3ymin,d3ymax)
     header["CCDSEC4"]='[%d:%d,%d:%d]'%(c2xmin,c2xmax,c3ymin,c3ymax)
     
+    if 1 :
+        print "flip image !"
+        hdu.data = hdu.data[::-1,:]
+        print "now modify all SEC info"
+        xmin,xmax,ymin,ymax = parse_sec_keyword(header["CCDSEC4"])        
+        ny_ccd=ymax
+        ny_input=header["NAXIS2"]
+        
+        header_copy=header.copy()
+        newamps={1:3,2:4,3:1,4:2}
+        for amp in range(1,5) :
+            
 
-    for k in ["DATASEC1","PRESEC1","CCDSEC1","BIASSEC1","DATASEC2","PRESEC2","CCDSEC2","BIASSEC2","DATASEC3","PRESEC3","CCDSEC3","BIASSEC3","DATASEC4","PRESEC4","CCDSEC4","BIASSEC4"]:
+            for sec in ["PRESEC","DATASEC","BIASSEC","CCDSEC"] :
+                key="%s%d"%(sec,amp)
+                xmin,xmax,ymin,ymax = parse_sec_keyword(header_copy[key])
+                if sec == "CCDSEC" :
+                    flipped_ymax=ny_ccd-ymin+1
+                    flipped_ymin=ny_ccd-ymax+1
+                else :
+                    flipped_ymax=ny_input-ymin+1
+                    flipped_ymin=ny_input-ymax+1
+                key="%s%d"%(sec,newamps[amp])
+                header[key]='[%d:%d,%d:%d]'%(xmin,xmax,flipped_ymin,flipped_ymax)
+    
+    for a in range(1,5) :
+        key="GAIN%d"%a
+        if not key in header :
+            header[key]=1.
+            print "WARNING !! MADE UP",key,header[key]
+    
+    #for k in ["DATASEC1","PRESEC1","CCDSEC1","BIASSEC1","DATASEC2","PRESEC2","CCDSEC2","BIASSEC2","DATASEC3","PRESEC3","CCDSEC3","BIASSEC3","DATASEC4","PRESEC4","CCDSEC4","BIASSEC4"]:
+    for k in header.keys() :
         print k,"=",header[k]
     
-    if 0 :
-        # from sims 
-        header["GAIN1"]=1.0
-        header["GAIN2"]=1.0
-        header["GAIN3"]=1.0
-        header["GAIN4"]=1.0
-        header["PRESEC1"]='[1:7,1:2064]'
-        header["DATASEC1"]='[8:2064,1:2064]'
-        header["BIASSEC1"]='[2065:2114,1:2064]'
-        header["CCDSEC1"]='[1:2057,1:2064]'
-        header["PRESEC2"]='[4222:4228,1:2064]'
-        header["DATASEC2"]='[2165:4221,1:2064]'
-        header["BIASSEC2"]='[2115:2164,1:2064]'
-        header["CCDSEC2"]='[2058:4114,1:2064]'
-        header["PRESEC3"]='[1:7,2065:4128]'
-        header["DATASEC3"]='[8:2064,2065:4128]'
-        header["BIASSEC3"]='[2065:2114,2065:4128]'
-        header["CCDSEC3"]='[1:2057,2065:4128]'
-        header["PRESEC4"]='[4222:4228,2065:4128]'
-        header["DATASEC4"]='[2165:4221,2065:4128]'
-        header["BIASSEC4"]='[2115:2164,2065:4128]'
-        header["CCDSEC4"]='[2058:4114,2065:4128]'
+    
 
 
-elif args.camera.lower().find("z")==0:
-    print "warning, from sims ..."
-    header["GAIN1"]=1.0
-    header["GAIN2"]=1.0
-    header["GAIN3"]=1.0
-    header["GAIN4"]=1.0
-    header["PRESEC1"]='[1:7,1:2064]'
-    header["DATASEC1"]='[8:2064,1:2064]'
-    header["BIASSEC1"]='[2065:2114,1:2064]'
-    header["CCDSEC1"]='[1:2057,1:2064]'
-    header["PRESEC2"]='[4222:4228,1:2064]'
-    header["DATASEC2"]='[2165:4221,1:2064]'
-    header["BIASSEC2"]='[2115:2164,1:2064]'
-    header["CCDSEC2"]='[2058:4114,1:2064]'
-    header["PRESEC3"]='[1:7,2065:4128]'
-    header["DATASEC3"]='[8:2064,2065:4128]'
-    header["BIASSEC3"]='[2065:2114,2065:4128]'
-    header["CCDSEC3"]='[1:2057,2065:4128]'
-    header["PRESEC4"]='[4222:4228,2065:4128]'
-    header["DATASEC4"]='[2165:4221,2065:4128]'
-    header["BIASSEC4"]='[2115:2164,2065:4128]'
-    header["CCDSEC4"]='[2058:4114,2065:4128]'
+else :
+    print "not implemented yet for camera",args.camera
+    sys.exit(12)
 
-# flip image ????
-hdu.data = hdu.data[::-1,:]
+
 
 ffile.writeto(args.outfile,clobber=True)
 print "wrote",args.outfile
