@@ -31,12 +31,32 @@ def boxcar(psf, image_file, nfibers=None) :
         """
     log=get_logger()
     log.info("Starting boxcar extraction...")
+
+    # it is a boot or specex psf ?
+    psftype=psf[0].header["PSFTYPE"]
+    log.info("psf is a '%s'"%psftype)
+    if psftype == "bootcalib" :    
+        wavemin = psf[0].header["WAVEMIN"]
+        wavemax = psf[0].header["WAVEMAX"]
+        xcoef   = psf[0].data
+        ycoef   = psf[1].data
+        xsig    = psf[2].data
+    elif psftype == "GAUSS-HERMITE" :
+        table=psf[1].data        
+        i=np.where(table["PARAM"]=="X")[0][0]
+        wavemin=table["WAVEMIN"][i]
+        wavemax=table["WAVEMAX"][i]
+        xcoef=table["COEFF"][i]
+        i=np.where(table["PARAM"]=="Y")[0][0]
+        ycoef=table["COEFF"][i]
+        i=np.where(table["PARAM"]=="GHSIGX")[0][0]
+        xsig=table["COEFF"][i] 
+    log.info("wavelength range : [%f,%f]"%(wavemin,wavemax))
     
-    wavemin = psf[0].header["WAVEMIN"]
-    wavemax = psf[0].header["WAVEMAX"]
-    xcoef   = psf[0].data
-    ycoef   = psf[1].data
-    xsig    = psf[2].data
+    
+    print "xcoef.shape",xcoef.shape
+    print "ycoef.shape",ycoef.shape
+    
 
     flux        = image_file[0].data
     #   Inverse variance of the image's value
