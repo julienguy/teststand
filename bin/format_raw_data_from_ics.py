@@ -37,17 +37,17 @@ for hdu in ffile :
         continue
     print "reformat extention",extname
     
-    band="UNKNOWN"
+    camera="UNKNOWN"
     if extname == "CCDS1B" :
-        band="B"
+        camera="B1"
     elif extname == "CCDS1R" :
-        band="R"
+        camera="R1"
     elif extname == "CCDS1Z" :
-        band="Z"
+        camera="Z1"
     
-
+    
     # I need to do this because desi code use first character to find camera arm
-    header["CAMERA"]="%s-%s"%(band,extname)
+    header["CAMERA"]=camera
     
     print "add CAMERA=%s"%header["CAMERA"]
     
@@ -94,12 +94,21 @@ for hdu in ffile :
             print "WARNING : missing",k,"set value=1"
             header[k]=1.            
         if gain>3. :
-            print "WARNING : this gain value seems too large , set to 1"
-            header[k]=1.
-  
+            print "WARNING : this gain value seems too large"
             
-    if 1 :
-        print "flip image !"
+    if extname == "CCDS1R"  :
+        print "WARNING : changing gains"
+        reference_gain=1.
+        header["GAIN1"]=reference_gain
+        header["GAIN2"]=reference_gain
+        header["GAIN3"]=reference_gain*1.09 # approximate, based on analysis gain_mismatch
+        header["GAIN4"]=reference_gain*1.10 # approximate, based on analysis gain_mismatch
+    
+    for k in ["GAIN1","GAIN2","GAIN3","GAIN4"] :
+        print "%s=%f"%(k,header[k])
+    
+    if extname == "CCDS1R"  :
+        print "flip %s image !"%extname
         hdu.data = hdu.data[::-1,:]
         print "now modify all SEC info"
         xmin,xmax,ymin,ymax = parse_sec_keyword(header["CCDSEC4"])        
@@ -130,8 +139,8 @@ for hdu in ffile :
             print "WARNING !! MADE UP",key,header[key]
     
     #for k in ["DATASEC1","PRESEC1","CCDSEC1","BIASSEC1","DATASEC2","PRESEC2","CCDSEC2","BIASSEC2","DATASEC3","PRESEC3","CCDSEC3","BIASSEC3","DATASEC4","PRESEC4","CCDSEC4","BIASSEC4"]:
-    for k in header.keys() :
-        print k,"=",header[k]
+    #for k in header.keys() :
+    #    print k,"=",header[k]
     
       
 ffile.writeto(args.outfile,clobber=True)
