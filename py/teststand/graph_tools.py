@@ -29,9 +29,9 @@ def plot_graph(frame, nfibers=None, start=0, end=None, only=False, opt_err=False
     """
 
     log         = get_logger()
-    spectra     = frame[0].data
-    ivar        = frame[1].data
-    wave        = frame[2].data
+    spectra     = frame["FLUX"].data
+    ivar        = frame["IVAR"].data
+    wave        = frame["WAVELENGTH"].data
     f_shape     = spectra.shape[0]
     
     if nfibers is not None :
