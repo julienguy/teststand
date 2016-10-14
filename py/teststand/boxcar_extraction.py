@@ -7,7 +7,7 @@ from desispec.log import get_logger
 #   RETURNS FITS FILE INCLUDING ELECTRONS QUANTITY
 ################
 
-def boxcar(psf, image_file, nfibers=None) :
+def boxcar(psf, image_file, nfibers=None, width=7) :
     """Find and returns  wavelength  spectra and inverse variance
 
         ----------
@@ -93,7 +93,7 @@ def boxcar(psf, image_file, nfibers=None) :
 
     for fiber in xrange(nfibers_to_extract) :
         log.info("extracting fiber #%03d"%fiber)
-        x1_of_y, x2_of_y = invert_legendre_polynomial(wavemin, wavemax, ycoef, xcoef, fiber, npix_y, wave_of_y)
+        x1_of_y, x2_of_y = invert_legendre_polynomial(wavemin, wavemax, ycoef, xcoef, fiber, npix_y, wave_of_y, width)
         for y in xrange(npix_y) :
             #   Checking if there's a dead pixel
             nb_invalidPix   = np.sum(flux_ivar[y, x1_of_y[y]:x2_of_y[y]] <= 0)
@@ -111,7 +111,7 @@ def boxcar(psf, image_file, nfibers=None) :
 def u(wave, wavemin, wavemax) :
     return 2. * (wave - wavemin)/(wavemax - wavemin) - 1.
 
-def invert_legendre_polynomial(wavemin, wavemax, ycoef, xcoef, fiber, npix_y, wave_of_y) :
+def invert_legendre_polynomial(wavemin, wavemax, ycoef, xcoef, fiber, npix_y, wave_of_y, width=7) :
  
     #   Wavelength array used in 'invert_legendre_polynomial'
     wave                = np.linspace(wavemin, wavemax, 100)
@@ -122,8 +122,8 @@ def invert_legendre_polynomial(wavemin, wavemax, ycoef, xcoef, fiber, npix_y, wa
     #   Determines wavelength intensity (x) based on Y
     x_of_y              = legval(u(wave_of_y[fiber], wavemin, wavemax), xcoef[fiber])
     #   Ascertain X by using low and high uncertainty
-    x1_of_y             = np.floor(x_of_y).astype(int) - 3
-    x2_of_y             = np.floor(x_of_y).astype(int) + 4
+    x1_of_y             = np.floor(x_of_y).astype(int) - width/2
+    x2_of_y             = np.floor(x_of_y).astype(int) + width/2 + 1
     return (x1_of_y, x2_of_y)
 
     #   comment for : invert_legendre_polynomial
