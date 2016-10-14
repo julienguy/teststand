@@ -29,7 +29,7 @@ args = parser.parse_args()
 
 psf=pyfits.open(args.psf)
 cam=psf[0].header["CAMERA"].strip()
-arm=cam[0]
+arm=cam[0].lower()
 if not arm in ['b','r','z'] :
     print "camera arm must be b, r or z, and read '%s' in psf header"%arm
     sys.exit(12)
