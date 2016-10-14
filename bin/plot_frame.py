@@ -4,8 +4,8 @@
 import sys
 import argparse
 import astropy.io.fits as pyfits
-from desispec_tools.graph_tools         import plot_graph
-from desispec_tools.graph_tools         import show_graph
+from teststand.graph_tools         import plot_graph
+from teststand.graph_tools         import show_graph
 from desispec.log import get_logger
 
 parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)

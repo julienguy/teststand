@@ -3,9 +3,9 @@
 import argparse
 import astropy.io.fits as pyfits
 
-from desispec_tools.boxcar_extraction   import boxcar
-from desispec_tools.resample            import resample_to_same_wavelength_grid
-from desispec_tools.graph_tools         import plot_graph,show_graph
+from teststand.boxcar_extraction   import boxcar
+from teststand.resample            import resample_to_same_wavelength_grid
+from teststand.graph_tools         import plot_graph,show_graph
 from desispec.log                       import get_logger
 
 parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
