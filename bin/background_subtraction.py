@@ -14,7 +14,7 @@ def parse_sec_keyword(value):
         raise ValueError, 'unable to parse {} as [a:b, c:d]'.format(value)
     return  map(int, m.groups())
 
-parser=argparse.ArgumentParser(description="Reformat DESI raw data")
+parser=argparse.ArgumentParser(description="Background subtraction")
 parser.add_argument('-i','--infile', type = str, default = None, required=True,
                     help = 'path to input DESI raw data file')
 parser.add_argument('-o','--outfile', type = str, default = None, required=True,
