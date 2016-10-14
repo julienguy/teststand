@@ -23,13 +23,15 @@ parser.add_argument('-r','--resample', action='store_true',
                     help = 'resample to save wavelength grid')
 parser.add_argument('--plot', type=str,
                     help = 'defines from_to which fiber to work on. (ex: --plot=50,60 means that only fibers 50 to 60 included will be plotted')
+parser.add_argument('--width', type=int, default=7, required=False,
+                    help = 'extraction line width')
 
 log         = get_logger()
 args        = parser.parse_args()
 psf         = pyfits.open(args.psf)
 image_file  = pyfits.open(args.image)
 
-spectra, ivar, wave = boxcar(psf, image_file, args.nfibers)
+spectra, ivar, wave = boxcar(psf, image_file, nfibers=args.nfibers,width=args.width)
 
 if args.resample :
     log.info("Starting resampling...")
@@ -40,6 +42,7 @@ hdulist = pyfits.HDUList([pyfits.PrimaryHDU(spectra),
                         pyfits.ImageHDU(ivar,name="IVAR"),
                         pyfits.ImageHDU(wave,name="WAVELENGTH")])
                         #pyfits.ImageHDU(rdata, name="RESOLUTION")])
+hdulist[0].header["EXTNAME"]="FLUX"
 hdulist.writeto(args.outframe,clobber=True)
 
 if args.plot or args.show :
