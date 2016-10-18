@@ -101,8 +101,8 @@ for hdu in ffile :
         reference_gain=1.
         header["GAIN1"]=reference_gain
         header["GAIN2"]=reference_gain
-        header["GAIN3"]=reference_gain*1.09 # approximate, based on analysis gain_mismatch
-        header["GAIN4"]=reference_gain*1.10 # approximate, based on analysis gain_mismatch
+        header["GAIN3"]=reference_gain
+        header["GAIN4"]=reference_gain
     
     for k in ["GAIN1","GAIN2","GAIN3","GAIN4"] :
         print "%s=%f"%(k,header[k])
@@ -116,7 +116,7 @@ for hdu in ffile :
         ny_input=header["NAXIS2"]
         
         header_copy=header.copy()
-        newamps={1:3,2:4,3:1,4:2}
+        #newamps={1:3,2:4,3:1,4:2}
         for amp in range(1,5) :
             
 
@@ -129,18 +129,17 @@ for hdu in ffile :
                 else :
                     flipped_ymax=ny_input-ymin+1
                     flipped_ymin=ny_input-ymax+1
-                key="%s%d"%(sec,newamps[amp])
+                #key="%s%d"%(sec,newamps[amp])
+                key="%s%d"%(sec,amp) # DO NOT CHANGE AMP NAMES, CONFUSING
+                old=header[key]
                 header[key]='[%d:%d,%d:%d]'%(xmin,xmax,flipped_ymin,flipped_ymax)
-    
+                print "%s %s -> %s"%(key,old,header[key])
     for a in range(1,5) :
         key="GAIN%d"%a
         if not key in header :
             header[key]=1.
             print "WARNING !! MADE UP",key,header[key]
     
-    #for k in ["DATASEC1","PRESEC1","CCDSEC1","BIASSEC1","DATASEC2","PRESEC2","CCDSEC2","BIASSEC2","DATASEC3","PRESEC3","CCDSEC3","BIASSEC3","DATASEC4","PRESEC4","CCDSEC4","BIASSEC4"]:
-    #for k in header.keys() :
-    #    print k,"=",header[k]
     
       
 ffile.writeto(args.outfile,clobber=True)
