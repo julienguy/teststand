@@ -11,15 +11,16 @@ import string
 parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
 parser.add_argument('-p','--psf', type = str, default = None, required = True,
                     help = 'path of psf boot file')
-parser.add_argument('-o','--output', type = str, default = None, required = True,
-                    help = 'path to output fits file')
+parser.add_argument('-o','--output', type = str, default = None, required = False,
+                    help = 'path to output image (png) file')
+
 
 args        = parser.parse_args()
 
 psf=specter.psf.GaussHermitePSF(args.psf)
 wave=np.linspace(psf.wmin+200,psf.wmax-200,15)
 
-zoom=16
+zoom=18
 image=np.zeros((psf.npix_y/zoom,psf.npix_x/zoom))
 for fiber in range(psf.nspec) :
     for wavelength in wave :
@@ -34,5 +35,11 @@ for fiber in range(psf.nspec) :
         except ValueError :
             print "failed for fiber wave=",fiber,wavelength
             pass
-      
-pyfits.writeto(args.output,image,clobber=True)
+
+fig=pylab.figure()
+pylab.imshow(image,origin=0,interpolation="nearest",extent=(0,psf.npix_x,0,psf.npix_y))
+if args.output is not None :
+    fig.savefig(args.output)
+pylab.show()
+
+#pyfits.writeto(args.output,image,clobber=True)
