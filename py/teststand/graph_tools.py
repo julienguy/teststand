@@ -10,7 +10,7 @@ def show_graph() :
     """
     pylab.show()
 
-def plot_graph(frame, nfibers=None, start=0, end=None, only=False, opt_err=False, opt_2d=False) :
+def plot_graph(frame, nfibers=None, start=0, end=None, only=False, opt_err=False, opt_2d=False, logscale=False) :
     """Plot graph from a given spectra from a fits file.
 
     ----------
@@ -69,7 +69,10 @@ def plot_graph(frame, nfibers=None, start=0, end=None, only=False, opt_err=False
                 pylab.plot(wave, spectra[fiber], "-")
     
     pylab.xlabel("Wavelength [A]")
-
+    if logscale :
+        print "set y log scale"
+        pylab.yscale("log")
+    
     if opt_2d :
         pylab.figure()
         if len(wave.shape) == 1 :
