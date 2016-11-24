@@ -52,14 +52,15 @@ mwave=np.mean(wave)
 
 
 fig = pylab.figure()
-nx=3
-ny=2
+nx=2
+ny=1
 
 pcount=1
 a0=pylab.subplot(ny,nx,pcount) ; pcount +=1
 a1=pylab.subplot(ny,nx,pcount) ; pcount +=1
-a2=pylab.subplot(ny,nx,pcount) ; pcount +=1
-a3=pylab.subplot(ny,nx,pcount) ; pcount +=1
+
+#a2=pylab.subplot(ny,nx,pcount) ; pcount +=1
+#a3=pylab.subplot(ny,nx,pcount) ; pcount +=1
 
 
 mx=[]
@@ -76,15 +77,20 @@ a0.set_xlabel("X CCD")
 a0.set_ylabel("Y CCD")
 a1.set_xlabel("Y CCD")
 a1.set_ylabel("Wavelength [A]")
+
+pylab.figure()
+a2=pylab.subplot(1,1,1)
 a2.plot(sigma)
 a2.set_xlabel("spec #")
 a2.set_ylabel("PSF sigma")
-mx=np.array(mx)
-dx=(mx-np.roll(mx,1))[1:]
-print dx[:12]
-a3.plot(dx,"o-")
-a3.set_xlabel("spec #")
-a3.set_ylabel("Delta X CCD @%dA"%int(mwave))
+
+if False :
+    mx=np.array(mx)
+    dx=(mx-np.roll(mx,1))[1:]
+    print dx[:12]
+    a3.plot(dx,"o-")
+    a3.set_xlabel("spec #")
+    a3.set_ylabel("Delta X CCD @%dA"%int(mwave))
 
 if args.sim :
     
