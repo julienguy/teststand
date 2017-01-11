@@ -17,7 +17,7 @@ parser.add_argument('-i','--image', type = str, default = None, required = True,
                     help = 'path of preprocessed dark image fits file')
 parser.add_argument('-o','--out', type = str, default = None, required = True, 
                     help = 'path to output mask fits file')
-parser.add_argument('--nsig', type = float, default = 7., required = False, 
+parser.add_argument('--nsig', type = float, default = 5., required = False, 
                     help = 'n sigma threshold')
 parser.add_argument('--frac', type = float, default = 0.2, required = False, 
                     help = 'fraction of bad pixels in row or column above which the entire row or column is masked')
