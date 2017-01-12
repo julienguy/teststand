@@ -10,8 +10,8 @@ def show_graph() :
     """
     pylab.show()
 
-def plot_graph(frame, nfibers=None, start=0, end=None, only=False, opt_err=False, opt_2d=False, logscale=False) :
-    """Plot graph from a given spectra from a fits file.
+def plot_graph(frame, nfibers=None, start=0, end=None, only=False, opt_err=False, opt_2d=False, logscale=False,title=None) :
+    """Plot graph from a given spectra from a fits file and returns figure
 
     ----------
     Parameters
@@ -53,7 +53,9 @@ def plot_graph(frame, nfibers=None, start=0, end=None, only=False, opt_err=False
     
     if only == True :
         end = start + 1
-
+    
+    fig = pylab.figure()
+    pl  = pylab.subplot(1,1,1)
     for fiber in xrange(start, end) :
         log.info("Plotting fiber %03d" % fiber)
         if opt_err :
@@ -72,6 +74,8 @@ def plot_graph(frame, nfibers=None, start=0, end=None, only=False, opt_err=False
     if logscale :
         print "set y log scale"
         pylab.yscale("log")
+    if title is not None :
+        pl.set_title(title)
     
     if opt_2d :
         pylab.figure()
@@ -96,5 +100,5 @@ def plot_graph(frame, nfibers=None, start=0, end=None, only=False, opt_err=False
             pylab.xlabel("Y CCD")
             pylab.ylabel("Fiber #")
         pylab.colorbar()
-            
-    # pylab.show()
+    
+    return fig       
