@@ -17,7 +17,7 @@ parser.add_argument('-i','--image', type = str, default = None, required = True,
                     help = 'path of preprocessed dark image fits file')
 parser.add_argument('-o','--out', type = str, default = None, required = True, 
                     help = 'path to output mask fits file')
-parser.add_argument('--nsig', type = float, default = 5., required = False, 
+parser.add_argument('--nsig', type = float, default = 3., required = False, 
                     help = 'n sigma threshold')
 parser.add_argument('--frac', type = float, default = 0.2, required = False, 
                     help = 'fraction of bad pixels in row or column above which the entire row or column is masked')
@@ -39,22 +39,28 @@ mask   = np.zeros(flux.shape, dtype=np.int32)
 
 mask[(ivar*flux**2)>(args.nsig**2)] |= ccdmask.BAD
 
-
-
 log.info("mask entire row or column if more than %f of pixels are masked"%args.frac)
-
+masked_lines = np.zeros(flux.shape, dtype=np.int32)
 n0=mask.shape[0]
 n1=mask.shape[1]
 for i in range(mask.shape[0]) :
     badfrac=np.sum(mask[i]&ccdmask.BAD)/float(n1*ccdmask.BAD)
     if badfrac>args.frac :
         log.info("masking entire row %d with a fraction of bad pixels=%f"%(i,badfrac))
-        mask[i] |= ccdmask.BAD
+        masked_lines[i] |= ccdmask.BAD
 for i in range(mask.shape[1]) :
     badfrac=np.sum(mask[:,i]&ccdmask.BAD)/float(n0*ccdmask.BAD)
     if badfrac>args.frac :
         log.info("masking entire column %d with a fraction of bad pixels=%f"%(i,badfrac))
-        mask[:,i] |= ccdmask.BAD
+        masked_lines[:,i] |= ccdmask.BAD
+
+only_rows_or_columns = False
+
+if only_rows_or_columns :
+    mask = masked_lines
+else :
+    mask |= masked_lines 
+
 
 log.info("mask all rows left (or right) of entirely masked row")
 # up
@@ -86,28 +92,29 @@ for i in np.arange(mask.shape[1]//2,0,-1) :
         mask[:,:i] |=ccdmask.BAD
         break
 
-# unmask isolated masked pixels which are probably statistical fluctuations
-sum99=np.zeros(mask.shape)
-sum99[1:-1,1:-1]=mask[1:-1,1:-1]
-sum99[1:-1,1:-1]+=mask[0:-2,1:-1]
-sum99[1:-1,1:-1]+=mask[2:,1:-1]
-sum99[1:-1,1:-1]+=mask[1:-1,0:-2]
-sum99[1:-1,1:-1]+=mask[0:-2,0:-2]
-sum99[1:-1,1:-1]+=mask[2:,0:-2]
-sum99[1:-1,1:-1]+=mask[1:-1,2:]
-sum99[1:-1,1:-1]+=mask[0:-2,2:]
-sum99[1:-1,1:-1]+=mask[2:,2:]
-nisolated=np.sum((sum99==mask))
-log.info("number of isolated masked pixels to unmask = %d"%nisolated)
-mask[(sum99==mask)]=0
+if not only_rows_or_columns :
+    
+    # unmask isolated masked pixels which are probably statistical fluctuations
+    sum99=np.zeros(mask.shape)
+    sum99[1:-1,1:-1]=mask[1:-1,1:-1]
+    sum99[1:-1,1:-1]+=mask[0:-2,1:-1]
+    sum99[1:-1,1:-1]+=mask[2:,1:-1]
+    sum99[1:-1,1:-1]+=mask[1:-1,0:-2]
+    sum99[1:-1,1:-1]+=mask[0:-2,0:-2]
+    sum99[1:-1,1:-1]+=mask[2:,0:-2]
+    sum99[1:-1,1:-1]+=mask[1:-1,2:]
+    sum99[1:-1,1:-1]+=mask[0:-2,2:]
+    sum99[1:-1,1:-1]+=mask[2:,2:]
+    nisolated=np.sum((sum99==mask))
+    log.info("number of isolated masked pixels to unmask = %d"%nisolated)
+    mask[(sum99==mask)]=0
 
-if args.npix>0 :
-    log.info("do a median filtering")
-    for i in range(n1) :
-        mask[:,i]=scipy.ndimage.filters.median_filter(mask[:,i],args.npix)
-    for i in range(n0) :
-        mask[i]=scipy.ndimage.filters.median_filter(mask[i],args.npix)
-
+    if args.npix>0 :
+        log.info("do a median filtering")
+        for i in range(n1) :
+            mask[:,i]=scipy.ndimage.filters.median_filter(mask[:,i],args.npix)
+        for i in range(n0) :
+            mask[i]=scipy.ndimage.filters.median_filter(mask[i],args.npix)
 
 
 
