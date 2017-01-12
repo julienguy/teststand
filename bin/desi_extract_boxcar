@@ -1,19 +1,20 @@
 #!/usr/bin/env python
 
 import argparse
+import sys
 import astropy.io.fits as pyfits
 
 from teststand.boxcar_extraction   import boxcar
 from teststand.resample            import resample_to_same_wavelength_grid
 from teststand.graph_tools         import plot_graph,show_graph
-from desispec.log                       import get_logger
+from desispec.log                  import get_logger
 
 parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
 parser.add_argument('-p','--psf', type = str, default = None, required = True,
                     help = 'path of psf fits file to get wavelength from')
 parser.add_argument('-i','--image', type = str, default = None, required = True,
                     help = 'path of image fits file')
-parser.add_argument('-o','--outframe', type = str, default = None, required = True,
+parser.add_argument('-o','--outframe', type = str, default = None, required = False,
                     help = 'path of output frame file')
 parser.add_argument('-n','--nfibers', type = int, default = None, required = False,
                     help = 'number of fibers (default=all)')
@@ -28,6 +29,12 @@ parser.add_argument('--width', type=int, default=7, required=False,
 
 log         = get_logger()
 args        = parser.parse_args()
+
+if args.outframe is None and not args.show :
+    print "you don't want to plot or save the spectra, so there's no point extracting the data :-)"
+    print "try %s --help"%(sys.argv[0])
+    sys.exit(1)
+
 psf         = pyfits.open(args.psf)
 image_file  = pyfits.open(args.image)
 
@@ -38,15 +45,16 @@ if args.resample :
     spectra, ivar, wave = resample_to_same_wavelength_grid(spectra, ivar, wave)
     log.info("Data resampled.")
 
-hdulist = pyfits.HDUList([pyfits.PrimaryHDU(spectra),
+frame = pyfits.HDUList([pyfits.PrimaryHDU(spectra),
                         pyfits.ImageHDU(ivar,name="IVAR"),
                         pyfits.ImageHDU(wave,name="WAVELENGTH")])
-                        #pyfits.ImageHDU(rdata, name="RESOLUTION")])
-hdulist[0].header["EXTNAME"]="FLUX"
-hdulist.writeto(args.outframe,clobber=True)
+frame[0].header["EXTNAME"]="FLUX"
+
+if args.outframe is not None :
+    frame.writeto(args.outframe,clobber=True)
 
 if args.plot or args.show :
-    frame = pyfits.open(args.outframe)
+    
     if not (args.plot) :
         plot_graph(frame)
     else :
