@@ -6,7 +6,7 @@ import numpy as np
 import astropy.io.fits as pyfits
 import argparse
 from desispec.preproc import  _parse_sec_keyword
-import pylab
+import matplotlib.pyplot as plt
 
 parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
 parser.add_argument('-i','--image', type = str, default = None, required = True, 
@@ -15,6 +15,7 @@ parser.add_argument('-t','--threshold', type = float, default = 2000, required =
                     help = 'flux threshold to detect cross-talk in other amps')
 parser.add_argument('-m','--maxflux',type = float, default = 15000, required = False, 
                     help = 'max flux to avoid saturation issues')
+parser.add_argument('--plot',action="store_true",help="show the fit")
 
 
 args        = parser.parse_args()
