@@ -1,0 +1,386 @@
+#!/usr/bin/env python
+
+
+import sys,string
+import numpy as np
+import astropy.io.fits as pyfits
+import argparse
+from desispec.preproc import  _parse_sec_keyword
+import matplotlib.pyplot as plt
+from desispec.log import get_logger
+import desispec.maskbits as maskbits
+from numpy.polynomial.legendre import legval,legfit
+
+from teststand.boxcar_extraction   import boxcar
+from teststand.resample            import resample_to_same_wavelength_grid
+
+
+def get_traces(psf_filename) :
+    psf         = pyfits.open(psf_filename)
+    log.info("Reading traces in psf file %s"%psf_filename)
+    # it is a boot or specex psf ?
+    psftype=psf[0].header["PSFTYPE"]
+    log.info("psf is a '%s'"%psftype)
+    if psftype == "bootcalib" :    
+        wavemin = psf[0].header["WAVEMIN"]
+        wavemax = psf[0].header["WAVEMAX"]
+        xcoef   = psf[0].data
+        ycoef   = psf[1].data
+        xsig    = psf[2].data
+    elif psftype == "GAUSS-HERMITE" :
+        table=psf[1].data        
+        i=np.where(table["PARAM"]=="X")[0][0]
+        wavemin=table["WAVEMIN"][i]
+        wavemax=table["WAVEMAX"][i]
+        xcoef=table["COEFF"][i]
+        i=np.where(table["PARAM"]=="Y")[0][0]
+        ycoef=table["COEFF"][i]
+        i=np.where(table["PARAM"]=="GHSIGX")[0][0]
+        xsig=table["COEFF"][i] 
+    log.info("wavelength range : [%f,%f]"%(wavemin,wavemax))
+    psf.close()
+    
+    return xcoef,ycoef,wavemin,wavemax
+
+def u(wave, wavemin, wavemax) :
+    return 2. * (wave - wavemin)/(wavemax - wavemin) - 1.
+
+def mypolfit(x,y,w,deg,force_zero_offset=False) :
+    n=deg+1
+    
+    
+    swxn=np.zeros(2*n)
+    for i in range(2*n) :
+        swxn[i]=np.sum(w*x**i)
+    
+    A=np.zeros((n,n))
+    for i in range(n) :
+        for j in range(n) :
+            A[i,j]=swxn[i+j]
+    
+    B=np.zeros((n))  
+    for i in range(n) :
+        B[i]=np.sum(w*x**i*y)
+
+    
+    if force_zero_offset :
+        A[0,0] += 1e8
+
+    Ai=np.linalg.inv(A)
+    
+    p=Ai.dot(B)
+    err=np.sqrt(np.diag(Ai).copy())
+    return p,err
+
+
+parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+description="Compute the electronic cross-talk coefficient among the amplifiers of a CCD image",
+                                 epilog='''
+                                 Input is a preprocessed arc lamp image with a sufficient number of bright lines
+                                 to evaluate unambiguously the cross-talk.                                 
+                                 ''')
+parser.add_argument('-i','--images', type = str, default = None, required = True, nargs="*",
+                    help = 'list of similar preprocessed image fits files')
+parser.add_argument('-a','--amplifiers', type = str, default = None, required = True, nargs="*",
+                    help = 'list of amplifiers to study, like A B')
+parser.add_argument('--plot',action="store_true",help="show the fit")
+parser.add_argument('--nsig',type=float,default=7.,required=False, help="n sigma clipping to variance measurement (use with care)")
+parser.add_argument('--nbins',type=int,default=40,required=False, help="number of flux bins")
+parser.add_argument('--minflux',type=float,default=10,required=False, help="minflux")
+parser.add_argument('--maxflux',type=float,default=10000.,required=False, help="minflux")
+parser.add_argument('--psf',type=str,required=True,default=None,help="needed to correct the spectral variations")
+parser.add_argument('--deg',type=int,required=False,default=1,help="degree of polynomial fit")
+#parser.add_argument('--fit-offset',action="store_true")
+
+fit_offset = True
+
+plot = True
+
+args        = parser.parse_args()
+log = get_logger()
+if len(args.images)<3 :
+    log.error("need at least 3 images")
+    sys.exit(0)
+
+xcoef,ycoef,wavemin,wavemax = get_traces(args.psf)
+
+
+
+header=None
+flux=[]
+rdnoise=[]
+spectra=[]
+wave=None
+
+bad=maskbits.ccdmask.BAD|maskbits.ccdmask.DEAD|maskbits.ccdmask.COSMIC|maskbits.ccdmask.PIXFLATZERO|maskbits.ccdmask.PIXFLATLOW
+
+
+    
+
+for filename in args.images :
+    log.info("reading %s"%filename)
+    image_file  = pyfits.open(filename)
+    flux.append( image_file[0].data * (image_file["IVAR"].data>0) * (image_file["MASK"].data & bad == 0) )
+    rdnoise.append( image_file["READNOISE"].data )
+    if header is None :
+        header = image_file[0].header
+
+
+nim = len(flux)
+
+for amp  in args.amplifiers :
+    
+    log.info("studying amplifier %s"%amp)
+    ii = _parse_sec_keyword(header['CCDSEC%s'%amp])
+    
+    log.info("extract spectra")
+    ystart=ii[0].start
+    ystop=ii[0].stop
+    xstart=ii[1].start
+    xstop=ii[1].stop
+    log.info("amp %s : y in [%d,%d] , x in [%d,%d]"%(amp,ystart,ystop,xstart,xstop))
+    fibers=[]
+    for f in range(xcoef.shape[0]) :
+        x=xcoef[f,0] # central x value of fiber
+        if x>=xstart and x<xstop : 
+            fibers.append(f)
+
+    fibers=np.array(fibers)
+    y=np.arange(ystart,ystop)
+    wave_grid  = None # 
+    spectra    = None # spectra of all fibers on common wave grid for all images
+    wave_of_y = np.zeros((fibers.size,y.size)) # will need this later
+    xb_of_y   = np.zeros((fibers.size,y.size)) # will need this later
+    xe_of_y   = np.zeros((fibers.size,y.size)) # will need this later
+    log.info("extracting spectra of amp %s fibers : %s"%(amp,fibers))
+    width=5
+    tmp_wave = np.linspace(wavemin,wavemax,100) # just for inverting legendre pol
+    tmp_flux_of_y = np.zeros((y.size))          # spectra of a given fiber    
+    for f,fiber in enumerate(fibers) : # loop on fibers
+        
+        y_of_wave_grid     = legval(u(tmp_wave,wavemin,wavemax),ycoef[fiber])
+        coef               = legfit(u(y_of_wave_grid, ystart, ystop), tmp_wave, deg=ycoef[fiber].size) # invert legendre polynomial wave(Y)
+        wave_of_y[f]       = legval(u(y,ystart,ystop),coef) # wave on CCD pix grid for this fiber
+        xc_of_y            = legval(u(wave_of_y[f], wavemin, wavemax), xcoef[fiber]) # trace coordinate x for y
+        xb_of_y[f]         = np.floor(xc_of_y).astype(int) - width//2 # xmin 
+        xe_of_y[f]         = np.floor(xc_of_y).astype(int) + width//2 + 2 # xmax
+        
+        if wave_grid is None :
+            wave_grid = wave_of_y[f].copy()
+            spectra   = np.zeros((nim,fibers.size,wave_grid.size)) # spectra of all fibers on common wave grid for all images
+
+        tmp_flux_of_y *= 0.
+        for im in range(nim) : # loop on images            
+            for i,yccd in enumerate(y)  : # loop on CCD rows
+                if np.sum(flux[im][yccd][xb_of_y[f,i]:xe_of_y[f,i]] == 0) > 0 : # at least one masked pixel
+                    continue
+                
+                tmp_flux_of_y[i] =  np.sum(flux[im][yccd][xb_of_y[f,i]:xe_of_y[f,i]])
+            ok=np.where(tmp_flux_of_y != 0) [0]
+            if ok.size == 0  :
+                log.error("couldn't extract spectrum of fiber %d"%fiber)
+                continue
+            spectra[im,f] = np.interp(wave_grid,wave_of_y[f][ok], tmp_flux_of_y[ok],left=0,right=0)
+    
+    log.info("compute mean spectrum and spectro-photometric correction per exposure")
+    
+    mean_spectrum_per_exposure    = np.median(spectra,axis=1)
+    # rebin
+    rebin=16
+    if rebin>1 :
+        n=wave_grid.size
+        wave_grid = wave_grid[:(n//rebin)*rebin].reshape(n//rebin,rebin).mean(-1)
+        tmp = np.zeros((nim,wave_grid.size))
+        for i in range(nim) :
+            tmp[i]=mean_spectrum_per_exposure[i][:(n//rebin)*rebin].reshape(n//rebin,rebin).mean(-1)
+        mean_spectrum_per_exposure=tmp
+    
+    max_variation = 0.05
+
+    mean_spectrum      = np.mean(mean_spectrum_per_exposure,axis=0)
+    diff_per_exposure  = np.zeros((nim,wave_grid.size))
+    mask               = np.ones(wave_grid.size).astype(bool)
+    for i in range(nim) :
+        diff_per_exposure[i] = mean_spectrum_per_exposure[i]-mean_spectrum
+        mask                &= np.abs(diff_per_exposure[i])<max_variation*np.abs(mean_spectrum) # if offset is larger than 5%, we'll discard the data
+    
+    frac_per_exposure  = 12*np.ones((nim,wave_grid.size))
+    for i in range(nim) :
+        frac_per_exposure[i,mask] = diff_per_exposure[i,mask]/mean_spectrum[mask]
+
+    if args.plot :
+        plt.figure("spectral-corrections-amp-%s"%amp)
+        for i in range(nim) :
+            #plt.plot(wave_grid[mask],diff_per_exposure[i,mask],label=args.images[im])
+            plt.plot(wave_grid[mask],frac_per_exposure[i,mask],"o-",label=args.images[im])
+        #plt.legend(loc="upper right")
+        plt.grid()
+    
+    log.info("back to the CCD, compute median flux image")
+    aflux    = []
+    for im in range(nim) :
+       aflux.append(flux[im][ii])
+    mflux      = np.median(aflux,axis=0)
+    
+    log.info("apply the spectral correction to the CCD images and keep only trustworthy pixels")
+    aflux = []
+    ardnoise = []
+    for im in range(nim) :
+        tmp = flux[im][ii]
+        image_mask = np.zeros(tmp.shape).astype(bool)
+        for f,fiber in enumerate(fibers) :
+            frac_per_ccd_row = np.interp(wave_of_y[f],wave_grid[mask],frac_per_exposure[im,mask],left=12,right=12)
+            for i in range(y.size) :
+                tmp[i,(xb_of_y[f,i]-xstart):(xe_of_y[f,i]-xstart)] -= frac_per_ccd_row[i]*mflux[i,(xb_of_y[f,i]-xstart):(xe_of_y[f,i]-xstart)]
+                image_mask[i,(xb_of_y[f,i]-xstart):(xe_of_y[f,i]-xstart)] = (np.abs(frac_per_ccd_row[i])<max_variation) # we will keep only this region to study the gains
+        aflux.append(tmp[image_mask].ravel())
+        ardnoise.append(rdnoise[im][ii][image_mask].ravel())
+        if im==0 :
+            log.info("number of pixels= %d"%(np.sum(image_mask)))
+    log.info("done")
+    
+    log.info("recompute median flux image")
+    aflux      = np.array(aflux)
+    ardnoise   = np.array(ardnoise)
+    mflux      = np.median(aflux,axis=0)
+    varreadout = np.median(ardnoise,axis=0)
+    
+    minflux=np.min(mflux)
+    maxflux=np.max(mflux)
+    fbins=np.linspace(args.minflux,maxflux,args.nbins)
+    
+    varflux    = np.mean((aflux-mflux)**2,axis=0)
+    varreadout = (np.median( ardnoise,axis=0))**2
+    
+    if(False & plot) :
+        log.info("show histogram of fluxes of selected pixels")
+        fig_histo=plt.figure("flux-histogram-amp%s"%amp)
+        flux_histogram,junk=np.histogram(mflux,bins=np.append(fbins,2*fbins[-1]-fbins[-2]))
+        mfbins=fbins+np.gradient(fbins)/2.
+        plt.plot(mfbins,flux_histogram,"-o")
+    
+    nloop=2
+    for loop in range(nloop) :
+        log.info("compute PTC (iter #%d) ..."%loop)    
+        
+        mflux_bins=np.zeros(fbins.size-1)
+        varflux_bins=np.zeros(fbins.size-1)
+        varreadout_bins=np.zeros(fbins.size-1)
+        varflux_err_bins=np.zeros(fbins.size-1)
+        
+        for i in range(fbins.size-1) :
+            ok=(mflux>=fbins[i])&(mflux<fbins[i+1])
+            if np.sum(ok)>=3 :                
+                mflux_bins[i]=np.mean(mflux[ok])
+                varflux_bins[i]=np.mean(varflux[ok]-varreadout[ok])
+                varreadout_bins[i]=np.mean(varreadout[ok])
+                varflux_err_bins[i]=np.std(varflux[ok]-varreadout[ok])/np.sqrt(np.sum(ok)-1)
+        
+        ok=np.where(mflux_bins!=0)[0]
+        mflux_bins = mflux_bins[ok]
+        varflux_bins = varflux_bins[ok]
+        varflux_err_bins = varflux_err_bins[ok]
+        w = 1./varflux_err_bins**2*(mflux_bins>args.minflux)*(mflux_bins<args.maxflux)
+        log.info("nbins=%d mean flux var= %f %f"%(mflux_bins.size,np.mean(mflux_bins),np.mean(varflux_bins)))
+        coeff,coefferr = mypolfit(mflux_bins,varflux_bins,w,deg=args.deg,force_zero_offset=(not fit_offset))        
+        for d in range(args.deg+1) :
+            log.info("coeff[%d] = %f +- %f"%(d,coeff[d],coefferr[d]))
+        
+        model_variance = varreadout.copy()
+        for d in range(args.deg+1) :
+            model_variance += coeff[d]*(mflux**d)
+        
+        ok = ( varflux  < args.nsig**2*model_variance)
+        nok=np.sum(ok)
+        nbad=mflux.size-nok
+        #log.info("nok = %d , nbad = %d "%(nok,nbad))
+        if nbad==0 :
+            break
+        mflux *= ok
+        varflux *= ok
+        
+    
+    # slope is 1/gain
+    # gain is elec/adu
+    # variance_elec = varreadout_adu*gain**2 + n_elec
+    # variance_elec = varreadout_adu*gain**2 + flux*gain
+    # variance_adu  = variance_elec/gain**2
+    # variance_adu  = varreadout_adu + flux/gain
+    measured_gain = 1./coeff[1]
+    measured_gain_err = coefferr[1]/coeff[1]**2
+    
+    log.info("(biased) GAIN AMP %s = %f +- %f"%(amp,measured_gain,measured_gain_err))
+   
+    #plt.plot(mflux_bins,varflux_bins,"o",c="b")
+    if(plot) :
+        plt.figure("PTC-%s"%amp)
+        ok=np.where(mflux>minflux)
+        plt.plot(mflux[ok],varflux[ok],".",alpha=0.1,color="gray")
+        plt.errorbar(mflux_bins,varflux_bins+varreadout_bins,varflux_err_bins,fmt="o",c="b",label="Data")
+        
+        
+        ok=np.where((mflux_bins>args.minflux)&(mflux_bins<args.maxflux))
+        model=varreadout_bins[ok]
+        for d in range(args.deg+1) :
+            model += coeff[d]*(mflux_bins[ok]**d)
+        plt.plot(mflux_bins[ok],model,"-",c="b",label="Model with (biased) fitted gain=%3.2f"%measured_gain)
+        #plt.plot(mflux_bins,varreadout_bins,"--",c="r")
+        plt.legend(numpoints=1)
+
+    if True :
+        
+        log.info("MC runs to evaluate bias and stat. uncertainty...")
+        mean_delta = 0 
+        sum_delta  = 0
+        sum_delta2 = 0
+        
+        # need a lot of MC to average out
+        for loop in range(100) :
+            
+            model_gain = measured_gain - mean_delta
+            model_variance = varreadout + mflux/model_gain
+            mcflux     = np.random.normal(size=aflux.shape[0]*aflux.shape[1]).reshape(aflux.shape)
+            mcflux     *= np.sqrt(model_variance)
+            mcflux     += mflux
+            mc_mflux   = np.median(mcflux,axis=0)
+            mc_varflux = np.mean((mcflux-mc_mflux)**2,axis=0)    
+            
+            mc_mflux_bins=np.zeros(fbins.size-1)
+            mc_varflux_bins=np.zeros(fbins.size-1)
+            mc_varflux_err_bins=np.zeros(fbins.size-1)
+            for i in range(fbins.size-1) :
+                ok=(mc_mflux>=fbins[i])&(mc_mflux<fbins[i+1])
+                if np.sum(ok)>=3 :     
+                    mc_mflux_bins[i]=np.mean(mc_mflux[ok])
+                    mc_varflux_bins[i]=np.mean(mc_varflux[ok]-varreadout[ok])
+                    mc_varflux_err_bins[i]=np.std(mc_varflux[ok]-varreadout[ok])/np.sqrt(np.sum(ok)-1)
+            w = 1./varflux_err_bins**2*(mflux_bins>args.minflux)*(mflux_bins<args.maxflux)
+            coeff,coefferr = mypolfit(mc_mflux_bins,mc_varflux_bins,w,deg=args.deg,force_zero_offset=(not fit_offset))
+            
+            mc_measured_gain = 1./coeff[1]
+            mc_measured_gain_err = coefferr/coeff[1]**2
+            delta = (mc_measured_gain-model_gain)
+            sum_delta   += delta
+            sum_delta2  += delta**2
+            mean_delta  = sum_delta/(loop+1)
+            rms_delta   = 0
+            if loop>0 :
+                rms_delta = np.sqrt(sum_delta2/(loop+1)-mean_delta**2)
+            
+        log.info("MC gain model=%4.3f fit=%4.3f, mean delta=%4.3f rms=%4.3f"%(model_gain,mc_measured_gain,mean_delta,rms_delta))
+            
+                    
+        if(plot) :
+            plt.errorbar(mc_mflux_bins,mc_varflux_bins+varreadout_bins,mc_varflux_err_bins,fmt="o",c="g",label="MC assuming gain=%3.2f"%model_gain)
+            plt.legend(numpoints=1)
+
+        #log.info("done MC")
+        log.info("Debiased GAIN AMP %s = %3.2f +- %4.3f(stat) +- %4.3f(sys) "%(amp,measured_gain-mean_delta,rms_delta,mean_delta))
+    
+    
+    
+    
+if(plot) :
+    plt.show()
+
+
