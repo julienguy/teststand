@@ -74,6 +74,7 @@ a1=pylab.subplot(ny,nx,pcount) ; pcount+=1
 a2=pylab.subplot(ny,nx,pcount) ; pcount+=1
 a3=pylab.subplot(ny,nx,pcount) ; pcount+=1
 a4=pylab.subplot(ny,nx,pcount) ; pcount+=1
+a5=pylab.subplot(ny,nx,pcount) ; pcount+=1
 
 for spec in range(nspec) :
     x = legval(u(wave,wavemin,wavemax), xcoef[spec])
@@ -87,6 +88,7 @@ for spec in range(nspec) :
     a3.plot(spec,ghsigx,"o")
     ghsigy = legval(u(refwave,wavemin,wavemax), ghsigy_coef[spec])
     a4.plot(spec,ghsigy,"o")
+    a5.plot(y,wave)
 
 a0.set_xlabel("X CCD")
 a0.set_ylabel("Y CCD")
