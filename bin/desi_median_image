@@ -14,6 +14,7 @@ parser.add_argument('-o','--outfile', type = str, default = None, required = Tru
 parser.add_argument('--hdu',type = str, default = 0, required = False, 
                     help = 'header HDU (int or string)')
 parser.add_argument('--with-primary-header',action="store_true")
+parser.add_argument('--mean',action="store_true", help="mean instead of median")
 
 args        = parser.parse_args()
 
@@ -41,8 +42,12 @@ for filename in args.image :
     if image_header is None :
         image_header=fitsfile[hdu].header
 
-print "compute median image ..."
-medimage=np.median(images,axis=0).reshape(shape)
+if args.mean :
+    print "compute mean image ..."
+    medimage=np.mean(images,axis=0).reshape(shape)
+else :
+    print "compute median image ..."                                                                                                                 
+    medimage=np.median(images,axis=0).reshape(shape)
 
 print "write ..."
 if not args.with_primary_header :
