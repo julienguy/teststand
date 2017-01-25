@@ -1,0 +1,214 @@
+#!/usr/bin/env python
+
+import sys
+import numpy as np
+import matplotlib.pyplot as plt
+import astropy.io.fits as pyfits
+import argparse
+def mypolfit(x,y,w,deg,force_zero_offset=False) :
+    n=deg+1
+    
+    
+    swxn=np.zeros(2*n)
+    for i in range(2*n) :
+        swxn[i]=np.sum(w*x**i)
+    
+    A=np.zeros((n,n))
+    for i in range(n) :
+        for j in range(n) :
+            A[i,j]=swxn[i+j]
+    
+    B=np.zeros((n))  
+    for i in range(n) :
+        B[i]=np.sum(w*x**i*y)
+
+    
+    if force_zero_offset :
+        A[0,0] += 1e8
+
+    Ai=np.linalg.inv(A)
+    
+    p=Ai.dot(B)
+    err=np.sqrt(np.diag(Ai).copy())
+    return p[::-1],err[::-1]
+
+def profile(xx,yy,bins) :
+    s1,junk=np.histogram(xx,bins=bins)
+    sx,junk=np.histogram(xx,bins=bins,weights=xx)
+    sy,junk=np.histogram(xx,bins=bins,weights=yy)
+    sy2,junk=np.histogram(xx,bins=bins,weights=yy**2)
+    i=(s1>10)
+    x=sx[i]/s1[i]
+    y=sy[i]/s1[i]
+    ey=np.sqrt((sy2[i]/s1[i]-y**2)/(s1[i]-1))
+    return x,y,ey
+
+
+
+parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+description='''Tool to display and fit the Photon Transfer Curve of CCD amplifiers. 
+Input is a list of fits files produced by desi_compute_gains.'''
+)
+parser.add_argument('-i','--input', type = str, default = None, required = True, nargs="*",help="flux and varflux fits files (output of desi_compute_gains)")
+parser.add_argument('-c','--camera', type = str, default = "")
+parser.add_argument('-a','--amplifiers', type = str, default = "ABCD", help="Specify the amplifiers to show. By default, all amplifier data found in the input files are displayed")
+
+args        = parser.parse_args()
+
+h=pyfits.open(args.input[0])
+amplifiers=[]
+for amp in list(args.amplifiers) :
+    if "MFLUX%s"%amp in h :
+        amplifiers.append(amp)
+h.close()
+namp=len(amplifiers)
+
+colors = ["orange","b","g"]
+labels = ["12 sec","1 sec","2 sec"]
+alpha  = 0.7
+
+#fig2=plt.figure()
+#an=plt.subplot(1,1,1)
+
+
+
+p=1
+if args.camera != "" :
+    fig=plt.figure("ptc-%s"%args.camera)
+else :
+    fig=plt.figure()
+
+for amp in amplifiers :
+    mflux=None
+    varflux=None
+    sample=None
+    has_this_amp=True
+    
+    for s,filename in enumerate(args.input) :
+        h=pyfits.open(filename)
+        if not "MFLUX%s"%amp in h :
+            print "no MFLUX%s"%amp
+            has_this_amp=False
+            break
+        emflux=h["MFLUX%s"%amp].data
+        evarflux=h["VARFLUX%s"%amp].data
+        readvar=np.mean(evarflux[emflux<200])
+        print filename,amp,"readvar=",readvar
+        
+        if mflux is None :
+            mflux=emflux
+            varflux=evarflux
+            sample=s*np.ones(emflux.shape)
+        else :
+            mflux=np.append(mflux,emflux)
+            varflux=np.append(varflux,evarflux)
+            sample=np.append(sample,s*np.ones(emflux.shape))
+        h.close()
+
+    samples=np.unique(sample).astype(int)
+    if False :
+        print "remove readnoise per sample"
+        for s in samples :
+            ok=np.where(mflux[sample==s]<300)[0]
+            readvar=np.median(varflux[sample==s][ok])
+            print s,readvar
+            varflux[sample==s] -= readvar
+    
+
+        
+    bins=np.linspace(-200,30000,30000/400)
+    x,y,ey = profile(mflux,varflux,bins)
+    
+    # per sample for plot
+    xs=[]
+    ys=[]
+    eys=[]
+    
+    for s in samples :
+        tx,ty,tey = profile(mflux[sample==s],varflux[sample==s],bins)        
+        xs.append(tx)
+        ys.append(ty)
+        eys.append(tey)
+    
+    
+    maxfit=10000.
+    deg=1
+    #an.plot(x,nd)
+    
+    addvar=0
+    for loop in range(50) :
+        eyb=np.sqrt(ey**2+addvar**2)
+        #c=np.polyfit(x,y,deg=deg,w=1/eyb**2*(x<maxfit))
+
+        c,cerr = mypolfit(x,y,w=1/eyb**2*(x<maxfit),deg=deg)
+        
+        pol=np.poly1d(c)
+        chi2=np.sum((y-pol(x))**2/eyb**2*(x<maxfit))
+        ndf=x[x<maxfit].size-c.size
+        chi2pdf=chi2/ndf
+        if np.abs(chi2pdf-1)<0.01:
+            break
+        if chi2pdf>1 :
+            addvar += 10.
+        else :
+            addvar -= 10.
+            if addvar==0 :
+                break
+    print "chi2/ndf=%f/%d=%f (for add. var error=%d)"%(chi2,ndf,chi2/ndf,addvar)
+    print "coef=",c
+    print "coef err =",cerr
+    if c[-2]<0 : c[-2]=0.
+    
+    gain     = 1./c[-2]
+    gain_err = cerr[-2]/c[-2]**2
+    print "Amp %s gain = ${\mathbf %4.3f \pm %4.3f}$ "%(amp,gain,gain_err)
+    
+    
+
+    
+    pol1d=np.poly1d(c[-2:])
+    a0=plt.subplot(namp,2,p) ; p += 1    
+    #plt.errorbar(x,y,ey,fmt="o",color="b")
+    for s in samples :
+        plt.errorbar(xs[s],ys[s],eys[s],fmt="o",alpha=alpha,color=colors[s],label=labels[s])
+    
+    plt.plot(x,pol(x),"--",c="r")
+    plt.plot(x,pol1d(x),"-",c="k")
+    #plt.text(1000,0.8*np.max(pol(x)),"AMP %s"%amp)
+    plt.legend(loc="upper left",fontsize="small",title="%s AMP %s"%(args.camera,amp))
+    if amp == amplifiers[-1] :
+        plt.xlabel("mean flux")
+    plt.ylabel("variance")
+    plt.locator_params(axis='x',nbins=5)
+    plt.axvline(x=maxfit,ls="-.",color="gray")
+    margin=500
+    plt.xlim([-margin,np.max(x)+margin])
+    a1=plt.subplot(namp,2,p) ; p += 1
+    #plt.errorbar(x,y-pol(x),ey,fmt="o",color="b")
+    for s in samples :
+        plt.errorbar(xs[s],ys[s]-pol(xs[s]),eys[s],fmt="o",alpha=alpha,color=colors[s],label=labels[s])
+        
+    if deg>1 :
+        plt.plot(x,pol(x)-pol1d(x),"--",c="r")
+    
+    plt.plot(x,x*c[-2]*0.01,"--",c="k")
+    plt.plot(x,-x*c[-2]*0.01,"--",c="k")
+    
+    xmax=min(np.max(x)+margin,15000)
+    ymax=xmax*c[-2]*0.01*5
+    plt.ylim([-ymax,ymax])
+    plt.xlim([-margin,xmax])
+    #plt.xscale("log")
+    plt.grid()
+    if amp == amplifiers[-1] :
+        plt.xlabel("mean flux")
+    #plt.ylabel("residual to linear")
+    plt.locator_params(axis='x',nbins=5)
+    plt.axvline(x=maxfit,ls="-.",color="gray")
+
+if args.camera != "" :
+    ofilename="ptc-%s.png"%args.camera
+else :
+    ofilename="ptc.png"
+fig.savefig(ofilename)
+plt.show()
