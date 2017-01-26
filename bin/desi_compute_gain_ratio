@@ -61,7 +61,8 @@ spectra=np.median(spectra,axis=0)
 ny=spectra.shape[-1]
 print "ny=",ny
 
-selected_fibers=np.arange(10,20)
+#selected_fibers=np.arange(10,20)
+selected_fibers=np.arange(0,20)
 fibers=np.arange(spectra.shape[0])
 rwave=np.mean(wave,axis=0)
 rspectra=np.zeros(spectra.shape)
@@ -98,6 +99,7 @@ for fiber in range(spectra.shape[0]) :
     spectra[fiber] /= fibertrans[fiber]
 
 ylim=[0.3,1.4]
+ylim=[0.8,1.2]
 
 for amp in range(2) :
     
@@ -114,7 +116,7 @@ for amp in range(2) :
     fibers=10*amp+np.arange(10)
     if True :
         if amp == 0 :
-            fibers = np.arange(8,10)
+            fibers = np.arange(0,10)
         else :
             fibers = np.arange(10,20)
     print "using",fibers
@@ -179,6 +181,6 @@ for amp in range(2) :
     plt.ylim(ylim)
     plt.axvline(ny/2,ls="--")
     plt.locator_params(axis='x',nbins=5)
-fig.savefig("flux-ratio-%s.png"%args.camera)
+fig.savefig("gain-ratio-%s.png"%args.camera)
 plt.show()
 
