@@ -52,6 +52,7 @@ Input is a list of fits files produced by desi_compute_gains.'''
 parser.add_argument('-i','--input', type = str, default = None, required = True, nargs="*",help="flux and varflux fits files (output of desi_compute_gains)")
 parser.add_argument('-c','--camera', type = str, default = "")
 parser.add_argument('-a','--amplifiers', type = str, default = "ABCD", help="Specify the amplifiers to show. By default, all amplifier data found in the input files are displayed")
+parser.add_argument('-m','--maxflux', type = float, default = 10000., help="max flux for linear PTC fit")
 
 args        = parser.parse_args()
 
@@ -131,20 +132,20 @@ for amp in amplifiers :
         eys.append(tey)
     
     
-    maxfit=10000.
+    
     deg=1
     #an.plot(x,nd)
     
     addvar=0
     for loop in range(50) :
         eyb=np.sqrt(ey**2+addvar**2)
-        #c=np.polyfit(x,y,deg=deg,w=1/eyb**2*(x<maxfit))
+        #c=np.polyfit(x,y,deg=deg,w=1/eyb**2*(x<args.maxflux))
 
-        c,cerr = mypolfit(x,y,w=1/eyb**2*(x<maxfit),deg=deg)
+        c,cerr = mypolfit(x,y,w=1/eyb**2*(x<args.maxflux),deg=deg)
         
         pol=np.poly1d(c)
-        chi2=np.sum((y-pol(x))**2/eyb**2*(x<maxfit))
-        ndf=x[x<maxfit].size-c.size
+        chi2=np.sum((y-pol(x))**2/eyb**2*(x<args.maxflux))
+        ndf=x[x<args.maxflux].size-c.size
         chi2pdf=chi2/ndf
         if np.abs(chi2pdf-1)<0.01:
             break
@@ -157,11 +158,13 @@ for amp in amplifiers :
     print "chi2/ndf=%f/%d=%f (for add. var error=%d)"%(chi2,ndf,chi2/ndf,addvar)
     print "coef=",c
     print "coef err =",cerr
-    if c[-2]<0 : c[-2]=0.
-    
-    gain     = 1./c[-2]
-    gain_err = cerr[-2]/c[-2]**2
-    print "Amp %s gain = ${\mathbf %4.3f \pm %4.3f}$ "%(amp,gain,gain_err)
+    if c[-2]<0 : 
+        c[-2]=0.
+        print "Amp %s gain = ?????"
+    else :
+        gain     = 1./c[-2]
+        gain_err = cerr[-2]/c[-2]**2
+        print "Amp %s gain = ${\mathbf %4.3f \pm %4.3f}$ "%(amp,gain,gain_err)
     
     
 
@@ -180,7 +183,7 @@ for amp in amplifiers :
         plt.xlabel("mean flux")
     plt.ylabel("variance")
     plt.locator_params(axis='x',nbins=5)
-    plt.axvline(x=maxfit,ls="-.",color="gray")
+    plt.axvline(x=args.maxflux,ls="-.",color="gray")
     margin=500
     plt.xlim([-margin,np.max(x)+margin])
     a1=plt.subplot(namp,2,p) ; p += 1
@@ -204,7 +207,7 @@ for amp in amplifiers :
         plt.xlabel("mean flux")
     #plt.ylabel("residual to linear")
     plt.locator_params(axis='x',nbins=5)
-    plt.axvline(x=maxfit,ls="-.",color="gray")
+    plt.axvline(x=args.maxflux,ls="-.",color="gray")
 
 if args.camera != "" :
     ofilename="ptc-%s.png"%args.camera
