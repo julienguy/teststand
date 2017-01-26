@@ -59,7 +59,7 @@ desi_check_linearity -i1 frame-r1-0001*.fits -i2 frame-r1-0002*.fits'''
 parser.add_argument('-i1','--input1', type = str, default = None, required = True, nargs="*", help = 'list of frames with same short exposure time')
 parser.add_argument('-i2','--input2', type = str, default = None, required = True, nargs="*", help = 'list of frames with longer exposure time')
 
-parser.add_argument('-c','--camera', type = str, default = "cam", required = False, help = 'camera name (for display)')
+parser.add_argument('-c','--camera', type = str, default = None, required = False, help = 'camera name (for display)')
 
 args = parser.parse_args()
 wave=None
@@ -87,6 +87,13 @@ colors=["b","g","orange","r"]
 fluxmin=200
 bins=np.linspace(fluxmin,10000,100)
 
+if args.camera is None :
+    title="flux-ratio"
+else :
+    title="flux-ratio-%s"%args.camera
+
+fig=plt.figure(title)
+
 for a,amp in enumerate(["A","B","C","D"]) :
     if amp=="A" or amp=="C" :
         fibers=np.arange(0,10)
@@ -98,8 +105,11 @@ for a,amp in enumerate(["A","B","C","D"]) :
     else :
         yy=np.arange(ny/2,ny-margin)
 
-    label="amp %s"%amp
-
+    if args.camera is not None :
+        label="%s AMP %s"%(args.camera,amp)
+    else :
+        label="AMP %s"%amp
+    
     sum_fibers = False
     if sum_fibers :
         x=np.array([])
@@ -122,7 +132,20 @@ for a,amp in enumerate(["A","B","C","D"]) :
             x,y,ey=profile(x,y,bins)
             plt.errorbar(x,y,ey,fmt="o",color=colors[a],label=label)
             label=None
+plt.grid()
+plt.xlabel("mean flux per pixel in sample 2")
+plt.ylabel("ratio of flux per pixel sample 1 / sample 2")
+
     
 plt.legend(loc="upper right",fontsize="medium")
+
+if args.camera is None :
+    ofilename="flux-ratio.png"
+else :
+    ofilename="flux-ratio-%s.png"%args.camera
+
+fig.savefig(ofilename)
+
+
 plt.show()
 
