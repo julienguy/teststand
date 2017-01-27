@@ -1,0 +1,618 @@
+#!/usr/bin/env python
+
+
+import sys,string
+import numpy as np
+import astropy.io.fits as pyfits
+import argparse
+from desispec.preproc import  _parse_sec_keyword
+import matplotlib.pyplot as plt
+import logging
+from desispec.log import get_logger
+import desispec.maskbits as maskbits
+from numpy.polynomial.legendre import legval,legfit
+
+from teststand.boxcar_extraction   import boxcar
+from teststand.resample            import resample_to_same_wavelength_grid
+
+
+def get_traces(psf_filename) :
+    psf         = pyfits.open(psf_filename)
+    log.info("Reading traces in psf file %s"%psf_filename)
+    # it is a boot or specex psf ?
+    psftype=psf[0].header["PSFTYPE"]
+    log.debug("psf is a '%s'"%psftype)
+    if psftype == "bootcalib" :    
+        wavemin = psf[0].header["WAVEMIN"]
+        wavemax = psf[0].header["WAVEMAX"]
+        xcoef   = psf[0].data
+        ycoef   = psf[1].data
+        xsig    = psf[2].data
+    elif psftype == "GAUSS-HERMITE" :
+        table=psf[1].data        
+        i=np.where(table["PARAM"]=="X")[0][0]
+        wavemin=table["WAVEMIN"][i]
+        wavemax=table["WAVEMAX"][i]
+        xcoef=table["COEFF"][i]
+        i=np.where(table["PARAM"]=="Y")[0][0]
+        ycoef=table["COEFF"][i]
+        i=np.where(table["PARAM"]=="GHSIGX")[0][0]
+        xsig=table["COEFF"][i] 
+    log.debug("wavelength range : [%f,%f]"%(wavemin,wavemax))
+    psf.close()
+    
+    return xcoef,ycoef,wavemin,wavemax
+
+def u(wave, wavemin, wavemax) :
+    return 2. * (wave - wavemin)/(wavemax - wavemin) - 1.
+
+def mypolfit(x,y,w,deg,force_zero_offset=False) :
+    n=deg+1
+    
+    
+    swxn=np.zeros(2*n)
+    for i in range(2*n) :
+        swxn[i]=np.sum(w*x**i)
+    
+    A=np.zeros((n,n))
+    for i in range(n) :
+        for j in range(n) :
+            A[i,j]=swxn[i+j]
+    
+    B=np.zeros((n))  
+    for i in range(n) :
+        B[i]=np.sum(w*x**i*y)
+
+    
+    if force_zero_offset :
+        A[0,0] += 1e8
+
+    Ai=np.linalg.inv(A)
+    
+    p=Ai.dot(B)
+    err=np.sqrt(np.diag(Ai).copy())
+    return p,err
+
+
+parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+description="Compute the electronic cross-talk coefficient among the amplifiers of a CCD image",
+                                 epilog='''
+                                 Input is a preprocessed arc lamp image with a sufficient number of bright lines
+                                 to evaluate unambiguously the cross-talk.                                 
+                                 ''')
+parser.add_argument('-i','--images', type = str, default = None, required = True, nargs="*",
+                    help = 'list of similar preprocessed image fits files')
+parser.add_argument('-a','--amplifiers', type = str, default = None, required = True, nargs="*",
+                    help = 'list of amplifiers to study, like A B')
+parser.add_argument('--plot',action="store_true",help="show the fit")
+parser.add_argument('--nsig',type=float,default=5.,required=False, help="n sigma clipping to variance measurement (use with care)")
+parser.add_argument('--binsize',type=float,default=400,required=False, help="flux bin size (cannot be too small to avoid biases)")
+parser.add_argument('--minflux',type=float,default=-2000.,required=False, help="minflux")
+parser.add_argument('--maxflux-fit',type=float,default=20000.,required=False, help="maxflux for fit")
+parser.add_argument('--maxflux-show',type=float,default=30000.,required=False, help="maxflux for display of PTC")
+parser.add_argument('--psf',type=str,required=True,default=None,help="needed to get the trace locations")
+parser.add_argument('--deg',type=int,required=False,default=1,help="degree of polynomial fit (to absorb non-linearities)")
+parser.add_argument('--nmc',type=int,required=False,default=100,help="number of Monte Carlo realizations to evaluate stat. uncertainty and bias")
+parser.add_argument('--debug',action="store_true")
+parser.add_argument('--width',type=int,required=False,default=5,help="width in pixels of trace")
+parser.add_argument('--nocalib',action="store_true",help="do not recalibrate the exposures")
+parser.add_argument('--margin',type=int,required=False,default=100,help="remove first and last rows of amp")
+parser.add_argument('--threshold',type=float,required=False,default=0.05,help="max allowed variation of calibration")
+parser.add_argument('--maxpixflux',type=float,required=False,default=20000,help="max pixel flux")
+parser.add_argument('--fig',type=str,required=False,default=None,help="save figure")
+parser.add_argument('--perpix',action='store_true',help="per pixel (otherwise per row)")  
+parser.add_argument('--noedge',action='store_true',help="exclude first or last two fibers")  
+parser.add_argument('-o','--output',type=str,required=False,default=None,help="save mean and variance measurements in fits file")
+
+fit_offset=True
+
+
+
+
+
+args        = parser.parse_args()
+
+add = (not args.perpix)
+
+log = get_logger()
+if args.debug :
+    log.setLevel(logging.DEBUG)
+if ( not args.nocalib ) and args.width<9 :
+    log.info("force width=9 for calibration to extract the whole spectra")
+    args.width=9
+
+
+if len(args.images)<3 :
+    log.error("need at least 3 images")
+    sys.exit(0)
+
+
+output_hdulist=None
+if args.output is not None :
+    output_hdulist=pyfits.HDUList([pyfits.PrimaryHDU()])
+
+header=None
+
+
+
+# first read one image header to get the amplifier coordinates
+fitsfile = pyfits.open(args.images[0])
+header=fitsfile[0].header
+fitsfile.close()
+nx=header["NAXIS1"]
+ny=header["NAXIS2"]
+camera=header["CAMERA"]
+log.info("CAMERA=%s"%camera)
+
+# read the trace coordinates
+xcoef,ycoef,wavemin,wavemax = get_traces(args.psf)
+
+# loop on amplifiers to get the pixel indices
+y = {}         #  y
+x_on  = {}     # central pix of y for each fiber
+x_off = {}     # pixels between fibers
+wave_of_y = {} # wavelength of y for each fiber
+mask = {}      # this is the data mask we will use, it's the only thing we really need to know , it's 2*nfibers-1 traces   
+
+
+for amp  in args.amplifiers :
+    
+    log.info("will study amplifier %s"%amp)
+    ii = _parse_sec_keyword(header['CCDSEC%s'%amp])
+    ystart=ii[0].start
+    ystop=ii[0].stop
+    xstart=ii[1].start
+    xstop=ii[1].stop
+    log.debug("amp %s : y in [%d,%d] , x in [%d,%d]"%(amp,ystart,ystop,xstart,xstop))
+    # remove first and last rows
+    if args.margin > 0 :
+        if ystart==0 :
+            ystart += args.margin
+        else :
+            ystop  -= args.margin
+        ii=(slice(ystart, ystop, None), slice(xstart, xstop, None))        
+        log.debug("excluding %d first and last rows -> slices=%s"%(args.margin,ii))  
+    fibers=[]
+    for f in range(xcoef.shape[0]) :
+        x=xcoef[f,0] # central x value of fiber
+        if x>=xstart and x<xstop : 
+            fibers.append(f)
+    fibers=np.array(fibers)
+    if args.noedge :
+        fibers=fibers[(fibers>1)&(fibers<18)]
+    
+
+    y[amp]        = np.arange(ystart,ystop)             #  y
+    wave_of_y[amp]= np.zeros((fibers.size,y[amp].size)) # wavelength of y for each fiber
+    x_on[amp]     = np.zeros((fibers.size,y[amp].size)).astype(int) # central pix of y for each fiber
+    
+    tmp_wave = np.linspace(wavemin,wavemax,100) # just for inverting legendre pol
+
+    #tmp_flux_of_y = np.zeros((y[amp].size))          # spectra of a given fiber
+    
+    for f,fiber in enumerate(fibers) : # loop on fibers        
+        tmp_y              = legval(u(tmp_wave,wavemin,wavemax),ycoef[fiber])
+        tmp_coef           = legfit(u(tmp_y, ystart, ystop), tmp_wave, deg=ycoef[fiber].size) # invert legendre polynomial wave(Y)
+        wave_of_y[amp][f]  = legval(u(y[amp],ystart,ystop),tmp_coef) # wave on CCD pix grid for this fiber
+        x_on[amp][f]       = legval(u(wave_of_y[amp][f], wavemin, wavemax), xcoef[fiber]) # trace coordinate x for y
+       
+    x_off[amp] =  (x_on[amp][1:]+x_on[amp][:-1])//2 # pixels between fibers
+
+    mask[amp] = np.zeros((ny,nx)).astype(bool) # this is the data mask we will use   
+
+    
+    for j,yy in enumerate(y[amp]) :
+        
+        if args.width<2 :
+            mask[amp][yy,x_on[amp][:,j]]=1
+            mask[amp][yy,x_off[amp][:,j]]=1
+        else :
+            for f in range(fibers.size) :
+                mask[amp][yy,x_on[amp][f,j]-args.width//2:x_on[amp][f,j]+args.width//2+1]=1
+            for f in range(fibers.size-1) :
+                mask[amp][yy,x_off[amp][f,j]-args.width//2:x_off[amp][f,j]+args.width//2+1]=1
+        
+    #pyfits.writeto("mask.fits",mask[amp].astype(int),clobber=True) ; sys.exit(12)
+    mask[amp]=mask[amp]
+    log.info("number of pixels in mask for amp %s = %d"%(amp,np.sum(mask[amp])))
+
+# now loop on images to store the data
+# we use only the central pixel per CCD row and per fiber for the region with signal
+# to avoid problems due to changes of the PSF
+# we also save nfibers-1 pixels per CCD row between fibers to get zero flux data
+flux={}
+ivar={}
+nimages = len(args.images)
+
+for amp  in args.amplifiers :    
+    flux[amp]=[]
+    ivar[amp]=[]
+
+badpix=maskbits.ccdmask.BAD|maskbits.ccdmask.DEAD|maskbits.ccdmask.COSMIC|maskbits.ccdmask.PIXFLATZERO|maskbits.ccdmask.PIXFLATLOW
+badpix|=maskbits.ccdmask.SATURATED
+
+for img,filename in enumerate(args.images) :
+    log.info("reading %s"%filename)
+    image_file  = pyfits.open(filename)
+    
+    for amp  in args.amplifiers :
+        amask=mask[amp]
+        if add :
+            tmp=image_file[0].data[amask]
+            ny=y[amp].size
+            nx=tmp.size/ny
+            tmp=tmp.reshape(ny,nx/args.width,args.width).sum(-1).ravel()
+            flux[amp].append(tmp)
+            tmp=((image_file[1].data[amask]>0)*(image_file[0].data[amask]<args.maxpixflux)*(image_file["MASK"].data[amask]&badpix==0)).reshape(ny,nx/args.width,args.width).sum(-1).ravel()
+            tmp *= (tmp==args.width) # only keep data without any masked pixel
+            ivar[amp].append(tmp)
+        else :    
+            flux[amp].append(image_file[0].data[amask].ravel())
+            ivar[amp].append(((image_file[1].data[amask]>0)*(image_file["MASK"].data[amask]&badpix==0)).ravel())
+    
+    image_file.close()
+
+for amp  in args.amplifiers :    
+    flux[amp]=np.array(flux[amp])
+    ivar[amp]=np.array(ivar[amp])
+    #print amp, flux[amp].shape
+# start the analysis
+
+
+for amp  in args.amplifiers :
+    
+    log.info("studying amplifier %s"%amp)
+    nfibers=x_on[amp].shape[0]
+    nimages=len(flux[amp])
+    aflux = flux[amp]
+    aivar = ivar[amp]
+    awave = wave_of_y[amp]
+    if not args.nocalib :
+        log.info("calibrating data of amplifier %s ..."%amp)        
+        nloop=10
+        for loop in range(nloop) : # check
+            wave = np.mean(awave,axis=0)
+            ny = y[amp].size
+            if add :
+                nx = (2*nfibers-1)
+            else :
+                nx = args.width*(2*nfibers-1)
+            # compute spectra : stack on width
+            spectra=np.zeros((nimages,nfibers,wave.size))
+            for img in range(nimages) :
+                tmp=aflux[img].reshape(ny,nx)
+                if add :
+                    for fiber in range(nfibers) :
+                        spectra[img,fiber]=np.interp(wave,awave[fiber],tmp[:,2*fiber])
+                else :
+                    for fiber in range(nfibers) :
+                        spectra[img,fiber]=np.interp(wave,awave[fiber],np.sum(tmp[:,(2*fiber)*args.width:(2*fiber+1)*args.width],axis=-1))
+            # median of spectra of each fiber for all exposures
+            med=np.median(spectra,axis=0)
+            #for fiber in range(nfibers) :
+            #    plt.plot(wave,med[fiber])
+            #plt.show()
+            
+                                                     
+            # compute fiber flat field
+            mmed=np.mean(med,axis=0)
+            
+            fflat=mmed/(med+(med==0))
+            # apply fiber flat field
+            for fiber in range(nfibers) :  
+                spectra[:,fiber] *= fflat[fiber]
+
+            
+                
+            # median of spectra of exposure for all fibers
+            med=np.median(spectra,axis=1)
+            
+            # rebin
+            r=32
+            if r>1 : # smooth the spectral correction
+                n=wave.size
+                n=(n/r)*r
+                wave=wave[:n].reshape(n/r,r).mean(-1)
+                med=med[:,:n].reshape(nimages,n/r,r).mean(-1)
+
+            mmed=np.mean(med,axis=0)            
+            corr=mmed/(med+(med==0))
+            if loop==0 :
+                first_corr = corr + 0.
+
+            
+            
+            if args.plot and ( loop==0 or loop==(nloop-1) ) :
+                plt.figure("calibration-%s-%s-%d"%(camera,amp,loop))
+                #plt.figure("calibration-%s-%s-%d"%(camera,amp,loop))
+                for e in range(nimages) :
+                    tmp=corr[e]-1
+                    plt.plot(wave,tmp)
+                plt.plot(wave,wave*0+args.threshold,"--",c="k")
+                plt.plot(wave,wave*0-args.threshold,"--",c="k")                
+                plt.grid()
+                #plt.show()
+
+                        
+            # apply the spectra correction back to all pixels
+            for img in range(nimages) :
+                tmp=aflux[img].reshape(ny,nx)                 
+                for fiber in range(nfibers) :
+                    tmpcorr=np.interp(awave[fiber],wave,corr[img])
+                    if add :
+                        tmp[:,(2*fiber)] *= tmpcorr
+                    else :
+                        for i in range(ny) :
+                            tmp[i,(2*fiber)*args.width:(2*fiber+1)*args.width] *= tmpcorr[i]                        
+                aflux[img]=tmp.ravel()
+            
+            if True : # kill data with correction larger than a args.threshold
+                
+                calibmask=np.ones(ny).astype(bool)
+                for fiber in range(nfibers) :
+                    tmpcorr = np.interp(awave[fiber],wave,corr[img])
+                    calibmask &= (np.abs(tmpcorr-1)<args.threshold)
+                if np.sum(calibmask)<10 :
+                    log.error("too many pixels masked because of spectral variations")
+                    sys.exit(12)
+                new_ny=np.sum(calibmask)
+                aflux = aflux.reshape(nimages,ny,nx)[:,calibmask,:].reshape(nimages,new_ny*nx)
+                aivar = aivar.reshape(nimages,ny,nx)[:,calibmask,:].reshape(nimages,new_ny*nx)
+                awave = awave[:,calibmask]
+                y[amp] = y[amp][calibmask]
+        
+
+        #plt.show() ;sys.exit(12)
+        flux[amp]=aflux
+        ivar[amp]=aivar
+        wave_of_y[amp]=awave
+        log.info("done calibrating")
+    
+    #print flux[amp].shape
+    
+    npix=aflux.shape[1]
+    mflux      = np.zeros(npix)
+    varflux    = np.zeros(npix)
+    varreadout = np.zeros(npix)
+
+    ndata      = np.sum((aivar>0),axis=0)
+    valid      = (ndata>np.max(ndata)/2) # at least half of pixels are ok
+    #valid      = (ndata==(np.max(ndata))) # all exposures are ok
+    
+    nloop=2
+    for loop in range(nloop) :
+        log.debug("compute PTC (iter #%d) ..."%loop) 
+
+        # compute mean and variance over images        
+        log.debug("number of valid pixels=%d"%np.sum(valid))
+        mflux[valid]      = np.sum((aivar>0)*aflux,axis=0)[valid]/ndata[valid] # average over images
+        varflux[valid]    = np.sum((aivar>0)*(aflux-mflux)**2,axis=0)[valid]/(ndata[valid]-1)         
+        
+        if loop==0 :
+            maxflux=min(np.max(mflux[valid]),args.maxflux_show)
+            nbins=int((maxflux-args.minflux)/args.binsize)
+            fbins=np.linspace(args.minflux,maxflux,nbins)
+        
+        a_hist=None
+        if(False & args.plot) :
+            log.debug("show histogram of fluxes of selected pixels")
+            fig_histo=plt.figure("flux-histogram-amp%s"%amp)
+            a_hist=plt.subplot(1,1,1)
+            flux_histogram,bins=np.histogram(mflux,bins=1000)
+            mfbins=bins[:-1]+(bins[1]-bins[0])/2.
+            plt.plot(mfbins,flux_histogram,"-o")
+    
+       
+        # compute profile
+        mflux_bins=np.zeros(fbins.size-1)
+        varflux_bins=np.zeros(fbins.size-1)
+        varflux_rms_bins=np.zeros(fbins.size-1)
+        varflux_err_bins=np.zeros(fbins.size-1)
+        
+        for i in range(fbins.size-1) :
+            ok=(mflux[valid]>=fbins[i])&(mflux[valid]<fbins[i+1])
+            nok=np.sum(ok)
+            if nok>=10 :                
+                mflux_bins[i]=np.mean(mflux[valid][ok])
+                varflux_bins[i]=np.mean(varflux[valid][ok])
+                varflux_rms_bins[i]=np.std(varflux[valid][ok])
+                #varflux_err_bins[i]=varflux_rms_bins[i]
+                varflux_err_bins[i]=varflux_rms_bins[i]/np.sqrt(nok-1)
+                #varflux_err_bins[i]=varflux_bins[i]/np.sqrt(2*nok*(nimages-1))
+                
+        ok=np.where((mflux_bins!=0))[0]
+        mflux_bins = mflux_bins[ok]
+        varflux_bins = varflux_bins[ok]
+        varflux_rms_bins = varflux_rms_bins[ok]        
+        varflux_err_bins = varflux_err_bins[ok]        
+        w = 1./(varflux_err_bins**2)*(mflux_bins>args.minflux)*(mflux_bins<args.maxflux_fit)
+        #w = (mflux_bins>args.minflux)*(mflux_bins<args.maxflux_fit)
+            
+        log.debug("nbins=%d mean flux var= %f %f"%(mflux_bins.size,np.mean(mflux_bins),np.mean(varflux_bins)))
+        coeff,coefferr = mypolfit(mflux_bins,varflux_bins,w,deg=args.deg,force_zero_offset=(not fit_offset))
+        #coeff = np.polyfit(mflux_bins,varflux_bins,deg=args.deg,w=w)[::-1] ; coefferr = np.zeros((coeff.size))
+        
+        for d in range(args.deg+1) :
+            log.debug("coeff[%d] = %f +- %f"%(d,coeff[d],coefferr[d]))
+        
+        model_variance = np.zeros(mflux.shape)
+        for d in range(args.deg+1) :
+            model_variance += coeff[d]*(mflux*(mflux>0))**d
+        model_variance_bins = np.zeros(mflux_bins.size)
+        for d in range(args.deg+1) :
+            model_variance_bins += coeff[d]*(mflux_bins**d)
+        
+        if nloop>1 :
+            isok = ( varflux  < model_variance*args.nsig**2 )
+            nbad = varflux.size - np.sum(isok)
+            if loop<nloop-1 and nbad>0:
+                valid *= isok
+                log.debug("discarding %d pixels"%nbad)
+        
+    
+    # slope is 1/gain
+    # gain is elec/adu
+    # variance_elec = varreadout_adu*gain**2 + n_elec
+    # variance_elec = varreadout_adu*gain**2 + flux*gain
+    # variance_adu  = variance_elec/gain**2
+    # variance_adu  = varreadout_adu + flux/gain
+    
+    
+    if args.output is not None :
+        output_hdulist.append(pyfits.ImageHDU(mflux[valid],name="MFLUX%s"%amp))
+        output_hdulist.append(pyfits.ImageHDU(varflux[valid],name="VARFLUX%s"%amp))
+        output_hdulist.append(pyfits.ImageHDU(ndata[valid],name="NDATA%s"%amp))    
+    
+
+    measured_gain = 1./coeff[1]
+    measured_gain_err = coefferr[1]/coeff[1]**2
+
+    if False :
+        chi2 = np.sum((varflux_bins-model_variance_bins)**2/varflux_err_bins**2)
+        ndf  = varflux_bins.size-(args.deg+1)
+        chi2pdf=chi2/ndf
+        log.debug("chi2pdf=%f"%chi2pdf)
+        if chi2pdf<1 : 
+            varflux_err_bins  *= np.sqrt(chi2pdf)
+            measured_gain_err *= np.sqrt(chi2pdf)
+    
+    if args.plot :
+        fig=plt.figure("PTC-%s-%s"%(camera,amp))
+        a0=plt.subplot(2,1,1)
+        a0.set_title("PTC-%s-%s"%(camera,amp)) 
+        ok=np.where((mflux[valid]>args.minflux)&(mflux[valid]<args.maxflux_show))[0]
+        plt.plot(mflux[valid][ok],varflux[valid][ok],".",alpha=0.1,color="gray")
+        plt.errorbar(mflux_bins,varflux_bins,varflux_err_bins,fmt="o",c="b",label="Data")
+        plt.xlabel("mean flux in pixels")
+        plt.ylabel("variance of flux in pixels")
+        maxvar=np.max(varflux_bins)
+        plt.ylim([-0.1*maxvar,3*maxvar])
+        plt.xlim([mflux_bins[0]-200,mflux_bins[-1]+200])
+        plt.grid()
+        
+        log.info("polynomial fit degree = %d"%args.deg)
+        
+        ok=np.where((mflux_bins>args.minflux)&(mflux_bins<args.maxflux_fit))
+        model=np.zeros(mflux_bins[ok].size)
+        for d in range(args.deg+1) :
+            model += coeff[d]*(mflux_bins[ok]**d)
+        plt.plot(mflux_bins[ok],model,"-",c="k",linewidth=2,label="Model with fitted gain=%3.2f"%measured_gain)
+        plt.legend(numpoints=1,title="PTC %s"%amp)
+        
+        a1=plt.subplot(2,1,2)
+        ok=np.where(mflux>args.minflux)
+        plt.errorbar(mflux_bins,varflux_bins-(coeff[0]+coeff[1]*mflux_bins),varflux_err_bins,fmt="o",c="b",label="Data")
+        nonlinear=np.zeros((mflux_bins.size))
+        for d in range(2,args.deg+1) :
+            nonlinear += coeff[d]*(mflux_bins**d)
+        plt.plot(mflux_bins,nonlinear,"--",c="k")
+        plt.plot(mflux_bins,mflux_bins*0.01*coeff[1],"--",c="g")
+        plt.plot(mflux_bins,-mflux_bins*0.01*coeff[1],"--",c="g")
+        
+        plt.xlim([mflux_bins[0]-200,mflux_bins[-1]+200])
+        plt.grid()
+        plt.xlabel("mean flux in pixels")
+        plt.ylabel("residual to linear relation")
+        
+    
+    mean_delta = 0 
+    rms_delta  = 0
+    
+    if args.nmc > 0 :
+        
+        log.info("MC runs to evaluate bias and stat. uncertainty...")        
+        sum_delta  = 0
+        sum_delta2 = 0
+        saved_mc_mflux_bins=[]
+        saved_mc_varflux_bins=[]
+        
+        # need a lot of MC to average out
+        for loop in range(args.nmc) :
+            
+            model_gain = measured_gain - mean_delta
+            model_variance = mflux/model_gain*(mflux>0)
+            mcflux     = np.random.normal(size=aflux.shape[0]*aflux.shape[1]).reshape(aflux.shape)
+            mcflux     *= np.sqrt(model_variance)
+            mcflux     += mflux
+            
+            nmeas      = np.sum(mcflux!=0,axis=0)
+            valid      = (nmeas>1)
+            nmeas[nmeas<2] = 2
+            mc_mflux    = valid*np.sum(mcflux,axis=0)/nmeas
+            mc_varflux  = valid*np.sum((mcflux-mc_mflux)**2,axis=0)/(nmeas-1)
+            
+            
+            if args.plot and loop==0 and a_hist is not None :
+                mc_flux_histogram,bins=np.histogram(mc_mflux,bins=1000)
+                mfbins=bins[:-1]+(bins[1]-bins[0])/2.
+                a_hist.plot(mfbins,mc_flux_histogram,"-",c="g")
+            
+            mc_mflux_bins=np.zeros(fbins.size-1)
+            mc_varflux_bins=np.zeros(fbins.size-1)
+            mc_varflux_err_bins=np.zeros(fbins.size-1)
+            for i in range(fbins.size-1) :
+                ok=(mc_mflux>=fbins[i])&(mc_mflux<fbins[i+1])
+                if np.sum(ok)>=10 :     
+                    mc_mflux_bins[i]=np.mean(mc_mflux[ok])
+                    mc_varflux_bins[i]=np.mean(mc_varflux[ok])
+                    mc_varflux_err_bins[i]=np.std(mc_varflux[ok])/np.sqrt(np.sum(ok)-1)
+
+            if loop>1 : # after some convergence
+                saved_mc_mflux_bins.append(mc_mflux_bins)
+                saved_mc_varflux_bins.append(mc_varflux_bins)
+
+
+
+            w = (mc_mflux_bins>args.minflux)*(mc_mflux_bins<args.maxflux_fit)*(mc_mflux_bins!=0)            
+            coeff,coefferr = mypolfit(mc_mflux_bins,mc_varflux_bins,w,deg=args.deg,force_zero_offset=(not fit_offset))
+            
+            if loop>1 : # after some convergence
+                #print "adding array of size",mc_mflux_bins.shape
+                saved_mc_mflux_bins.append(mc_mflux_bins)
+                saved_mc_varflux_bins.append(mc_varflux_bins)
+        
+            mc_measured_gain = 1./coeff[1]
+            mc_measured_gain_err = coefferr/coeff[1]**2
+            delta = (mc_measured_gain-model_gain)
+            log.debug("MC gain realization #%d model=%4.3f fit=%4.3f"%(loop,model_gain,mc_measured_gain))
+            sum_delta   += delta
+            sum_delta2  += delta**2
+            mean_delta  = sum_delta/(loop+1)
+            rms_delta   = 0
+            if loop>0 :
+                rms_delta = np.sqrt(sum_delta2/(loop+1)-mean_delta**2)
+            
+        log.debug("MC gain model=%4.3f fit=%4.3f, mean delta=%4.3f rms=%4.3f"%(model_gain,mc_measured_gain,mean_delta,rms_delta))
+            
+                    
+        if(False and args.plot and args.nmc > 2) :
+            print mc_mflux_bins.shape
+            
+            mc_mflux_bins   = np.array(saved_mc_mflux_bins)
+            mc_varflux_bins = np.array(saved_mc_varflux_bins)
+            print mc_mflux_bins.shape
+            nmc=np.sum(mc_mflux_bins>0,axis=0)
+            ok=np.where(nmc>0)[0]
+            mc_mflux_bins   = np.sum(mc_mflux_bins,axis=0)[ok]/nmc[ok]
+            mc_varflux_bins = np.sum(mc_varflux_bins,axis=0)[ok]/nmc[ok]
+            a.plot(mc_mflux_bins,mc_varflux_bins,"--",c="g",label="MC assuming gain=%3.2f"%model_gain)
+            a.legend(numpoints=1)
+
+        #log.info("done MC")
+    if rms_delta>0 :
+        log.info("GAIN AMP %s = $%4.3f \\pm %4.3f \\pm %4.3f$ "%(amp,measured_gain-mean_delta,rms_delta,np.abs(mean_delta)))
+    else :
+        log.info("GAIN AMP %s = $%4.3f \\pm %4.3f$"%(amp,measured_gain,measured_gain_err))
+    
+
+if args.output is not None :
+    output_hdulist.writeto(args.output,clobber=True)
+    log.info("wrote %s"%args.output)
+
+if args.plot :
+    if args.fig :
+        fig.savefig(args.fig)
+        log.info("wrote %s"%args.fig)
+    plt.show()
+
+

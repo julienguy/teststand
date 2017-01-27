@@ -1,0 +1,151 @@
+#!/usr/bin/env python
+
+
+import sys,string
+import numpy as np
+import astropy.io.fits as pyfits
+import argparse
+import matplotlib.pyplot as plt
+from desispec.log import get_logger
+
+def profile(xx,yy,bins) :
+    s1,junk=np.histogram(xx,bins=bins)
+    sx,junk=np.histogram(xx,bins=bins,weights=xx)
+    sy,junk=np.histogram(xx,bins=bins,weights=yy)
+    sy2,junk=np.histogram(xx,bins=bins,weights=yy**2)
+    i=(s1>10)
+    x=sx[i]/s1[i]
+    y=sy[i]/s1[i]
+    ey=np.sqrt((sy2[i]/s1[i]-y**2)/(s1[i]-1))
+    return x,y,ey
+
+
+
+def mypolfit(x,y,w,deg,force_zero_offset=False) :
+    n=deg+1
+    
+    
+    swxn=np.zeros(2*n)
+    for i in range(2*n) :
+        swxn[i]=np.sum(w*x**i)
+    
+    A=np.zeros((n,n))
+    for i in range(n) :
+        for j in range(n) :
+            A[i,j]=swxn[i+j]
+    
+    B=np.zeros((n))  
+    for i in range(n) :
+        B[i]=np.sum(w*x**i*y)
+
+    
+    if force_zero_offset :
+        A[0,0] += 1e8
+
+    Ai=np.linalg.inv(A)
+    
+    p=Ai.dot(B)
+    err=np.sqrt(np.diag(Ai).copy())
+    return p[::-1],err[::-1]
+
+
+parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+description='''Plot the ratio of fluxes as a function of flux based on two series 
+of extracted frames taken with the same illumination device 
+but different exposure times
+''',epilog='''Inputs are two lists of frames, ex:
+desi_check_linearity -i1 frame-r1-0001*.fits -i2 frame-r1-0002*.fits'''
+)
+parser.add_argument('-i1','--input1', type = str, default = None, required = True, nargs="*", help = 'list of frames with same short exposure time')
+parser.add_argument('-i2','--input2', type = str, default = None, required = True, nargs="*", help = 'list of frames with longer exposure time')
+
+parser.add_argument('-c','--camera', type = str, default = None, required = False, help = 'camera name (for display)')
+
+args = parser.parse_args()
+wave=None
+spectra1=[]
+for filename in args.input1 :
+    h=pyfits.open(filename)
+    spectra1.append(h[0].data)
+    if wave is None :
+        wave = h["WAVELENGTH"].data
+
+spectra2=[]                                                                    
+for filename in args.input2 :
+    h=pyfits.open(filename)
+    spectra2.append(h[0].data)
+
+spectra1=np.array(spectra1)
+spectra1=np.mean(spectra1,axis=0)
+spectra2=np.array(spectra2)
+spectra2=np.mean(spectra2,axis=0)
+
+ny=spectra1.shape[-1]
+print "ny=",ny
+colors=["b","g","orange","r"]
+
+fluxmin=200
+bins=np.linspace(fluxmin,10000,100)
+
+if args.camera is None :
+    title="flux-ratio"
+else :
+    title="flux-ratio-%s"%args.camera
+
+fig=plt.figure(title)
+
+for a,amp in enumerate(["A","B","C","D"]) :
+    if amp=="A" or amp=="C" :
+        fibers=np.arange(0,10)
+    else :
+        fibers=np.arange(10,20)
+    margin=50
+    if amp=="A" or amp == "B" :
+        yy=np.arange(margin,ny/2)
+    else :
+        yy=np.arange(ny/2,ny-margin)
+
+    if args.camera is not None :
+        label="%s AMP %s"%(args.camera,amp)
+    else :
+        label="AMP %s"%amp
+    
+    sum_fibers = False
+    if sum_fibers :
+        x=np.array([])
+        y=np.array([])
+        for fiber in fibers :
+            ok=np.where(spectra2[fiber,yy]>fluxmin)[0]
+            if ok.size==0 : continue
+            ok=yy[ok]
+            x = np.append(x,spectra2[fiber,ok])
+            y = np.append(y,spectra1[fiber,ok]/spectra2[fiber,ok])
+        x,y,ey=profile(x,y,bins)
+        plt.errorbar(x,y,ey,fmt="o",color=colors[a],label=label)
+    else :
+        for fiber in fibers :                                                                                       
+            ok=np.where(spectra2[fiber,yy]>fluxmin)[0]
+            if ok.size==0 : continue
+            ok=yy[ok]
+            x = spectra2[fiber,ok]
+            y = spectra1[fiber,ok]/spectra2[fiber,ok]
+            x,y,ey=profile(x,y,bins)
+            plt.errorbar(x,y,ey,fmt="o",color=colors[a],label=label)
+            label=None
+plt.grid()
+plt.xlabel("mean flux per pixel in sample 2")
+plt.ylabel("ratio of flux per pixel sample 1 / sample 2")
+
+    
+plt.legend(loc="upper right",fontsize="medium")
+
+if args.camera is None :
+    ofilename="flux-ratio.png"
+else :
+    ofilename="flux-ratio-%s.png"%args.camera
+
+fig.savefig(ofilename)
+
+
+plt.show()
+

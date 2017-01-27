@@ -1,0 +1,186 @@
+#!/usr/bin/env python
+
+
+import sys,string
+import numpy as np
+import astropy.io.fits as pyfits
+import argparse
+import matplotlib.pyplot as plt
+from desispec.log import get_logger
+
+
+def mypolfit(x,y,w,deg,force_zero_offset=False) :
+    n=deg+1
+    
+    
+    swxn=np.zeros(2*n)
+    for i in range(2*n) :
+        swxn[i]=np.sum(w*x**i)
+    
+    A=np.zeros((n,n))
+    for i in range(n) :
+        for j in range(n) :
+            A[i,j]=swxn[i+j]
+    
+    B=np.zeros((n))  
+    for i in range(n) :
+        B[i]=np.sum(w*x**i*y)
+
+    
+    if force_zero_offset :
+        A[0,0] += 1e8
+
+    Ai=np.linalg.inv(A)
+    
+    p=Ai.dot(B)
+    err=np.sqrt(np.diag(Ai).copy())
+    return p[::-1],err[::-1]
+
+
+parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+description='''Measures the ratio of gains between amplifiers (C/A and D/B) assuming a continuity of the spectra.
+This tool should be used with continuum lamp data or LED data which spectrum extends on two amplifiers.
+''',
+epilog='''Input is a list of frames which spectra are averaged.'''
+)
+parser.add_argument('-i','--input', type = str, default = None, required = True, nargs="*", help = 'list of frames')
+parser.add_argument('-c','--camera', type = str, default = "cam", required = False, help = 'camera name (for display)')
+
+args = parser.parse_args()
+wave=None
+spectra=[]
+for filename in args.input :
+    h=pyfits.open(filename)
+    spectra.append(h[0].data)
+    if wave is None :
+        wave = h["WAVELENGTH"].data
+
+
+spectra=np.array(spectra)
+spectra=np.median(spectra,axis=0)
+ny=spectra.shape[-1]
+print "ny=",ny
+
+#selected_fibers=np.arange(10,20)
+selected_fibers=np.arange(0,20)
+fibers=np.arange(spectra.shape[0])
+rwave=np.mean(wave,axis=0)
+rspectra=np.zeros(spectra.shape)
+for f,fiber in enumerate(fibers) :
+    rspectra[f]=np.interp(rwave,wave[fiber],spectra[fiber])
+
+fibertrans=np.ones(spectra.shape[0])
+mrspec=np.ones(rwave.size)
+yrange=np.arange(ny/2-1000,ny/2+1000)
+
+for loop in range(10) :
+    x=np.zeros(fibers.size)
+    for f,fiber in enumerate(fibers) :
+        meanf=np.median(rspectra[f][yrange]/mrspec[yrange])
+        x[f]=meanf
+        fibertrans[fiber] *= meanf
+        rspectra[f] /= meanf
+    x/=np.mean(x[selected_fibers])
+    rms=np.std(x[selected_fibers])
+    print loop,rms
+    mrspec=np.median(rspectra[selected_fibers],axis=0)
+    if rms<1e-4 :
+        break
+
+fig=plt.figure()
+for fiber in selected_fibers :
+    plt.plot(rwave,rspectra[fiber],c="gray",alpha=0.2)
+plt.plot(rwave,mrspec,c="k")
+
+fig=plt.figure("flux-ratio-%s"%args.camera)
+
+# apply this measured fiber transmission to spectra in y-frame
+for fiber in range(spectra.shape[0]) :
+    spectra[fiber] /= fibertrans[fiber]
+
+ylim=[0.3,1.4]
+ylim=[0.8,1.2]
+
+for amp in range(2) :
+    
+    
+    
+    
+    if amp==0 :
+        label = "A - C (before)"
+    else :
+        label = "B - D (before)"
+
+    a0=plt.subplot(2,2,2*amp+1,title=label)
+    
+    fibers=10*amp+np.arange(10)
+    if True :
+        if amp == 0 :
+            fibers = np.arange(0,10)
+        else :
+            fibers = np.arange(10,20)
+    print "using",fibers
+    for fiber in fibers :
+        plt.plot(spectra[fiber],c="gray",alpha=0.2)
+    mspec=np.median(spectra[fibers],axis=0)
+    plt.plot(mspec,c="k")
+
+    y=np.arange(ny)
+    width=100
+    yb1=ny/2-1-width
+    ye1=ny/2-1
+    yb2=ny/2+1
+    ye2=ny/2+1+width
+    
+    deg=2
+    c1=np.polyfit(y[yb1:ye1],mspec[yb1:ye1],deg=deg)
+    pol1=np.poly1d(c1)
+    #rms=np.std(mspec[yb1:ye1]-pol1(y[yb1:ye1]))
+    #w=1./rms**2*np.ones((yb1:ye1-yb1))
+
+    c2=np.polyfit(y[yb2:ye2],mspec[yb2:ye2],deg=deg)
+    pol2=np.poly1d(c2)
+    plt.plot(y[yb1:ye1],pol1(y[yb1:ye1]),c="r")
+    plt.plot(y[yb2:ye2],pol2(y[yb2:ye2]),c="r")
+    plt.xlim([ny/2-2*width,ny/2+2*width])
+    plt.ylim(ylim)
+    plt.axvline(ny/2,ls="--")
+    plt.locator_params(axis='x',nbins=5)
+    
+    if amp==0 :
+        amp1="A"
+        amp2="C"
+    else :
+        amp1="B"
+        amp2="D"
+        
+    ratio = pol1(ny/2)/pol2(ny/2)
+    print "ADU flux ratio %s/%s = gain_%s/gain_%s = %f "%(amp1,amp2,amp2,amp1,ratio)
+    
+    # we want f_elec_1 = f_elec_2
+    #         gain_1 * f_adu_1 = gain_2 *f_adu_2
+    #         gain_1/gain_2 = f_adu_2/f_adu_1
+
+
+    
+    if amp==0 :
+        label = "A - C (with corr = %4.3f)"%ratio
+    else :
+        label = "B - D (with corr = %4.3f)"%ratio
+    a0=plt.subplot(2,2,2*amp+2,title=label)
+    
+    modified_spectra=spectra[fibers]
+    modified_spectra[:,:ny/2] /= np.sqrt(ratio)
+    modified_spectra[:,ny/2:] *= np.sqrt(ratio)
+    
+    for fiber in range(fibers.size) :
+        plt.plot(modified_spectra[fiber],c="gray",alpha=0.2)
+    mspec=np.median(modified_spectra,axis=0)
+    plt.plot(mspec,c="k")
+    plt.xlim([ny/2-2*width,ny/2+2*width])
+    plt.ylim(ylim)
+    plt.axvline(ny/2,ls="--")
+    plt.locator_params(axis='x',nbins=5)
+fig.savefig("gain-ratio-%s.png"%args.camera)
+plt.show()
+

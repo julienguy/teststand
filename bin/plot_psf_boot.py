@@ -65,6 +65,9 @@ a1=pylab.subplot(ny,nx,pcount) ; pcount +=1
 
 
 mx=[]
+min_dwdy=100.
+max_dwdy=0.
+mean_dwdy=0.
 for spec in range(nspec) :
 
     x = legval(u(wave,wavemin,wavemax), xcoef[spec])
@@ -72,7 +75,15 @@ for spec in range(nspec) :
     a0.plot(x,y)
     a1.plot(y,wave)
     mx.append(legval(u(mwave,wavemin,wavemax), xcoef[spec]))
-
+    dy=np.gradient(y)
+    dw=np.gradient(wave)
+    dwdy=dw/dy
+    print "fiber #%d min mean max dw/dy = %f %f %f "%(spec,np.min(dwdy),np.mean(dwdy),np.max(dwdy))
+    min_dwdy=min(min_dwdy,np.min(dwdy))
+    max_dwdy=max(max_dwdy,np.max(dwdy))
+    mean_dwdy += np.mean(dwdy)
+mean_dwdy/=nspec
+print "total min mean max dw/dy = %f %f %f "%(min_dwdy,mean_dwdy,max_dwdy)
 
 a0.set_xlabel("X CCD")
 a0.set_ylabel("Y CCD")
