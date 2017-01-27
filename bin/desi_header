@@ -26,16 +26,16 @@ except ValueError:
 if args.key is None or len(args.key)==0 :
     print("no key, will dump header")
     for filename in args.image :
-        print filename
-        print "======================"        
+        print(filename)
+        print("======================")
         h=pyfits.open(filename)
         if args.info :
             h.info()
-            print ""
+            print("")
         
         header=h[hdu].header
-        print header.tostring
-        print ""
+        print(header.tostring)
+        print("")
         h.close()
     sys.exit(0)
 
@@ -44,7 +44,7 @@ for k in args.key :
     line+=" "+k
 line+=" filename"
 
-print line
+print(line)
 for filename in args.image :
     h=pyfits.open(filename)
     header=h[hdu].header
@@ -56,7 +56,7 @@ for filename in args.image :
             val="None"
         line+=" "+str(val)
     line+=" "+filename
-    print line
+    print(line)
     h.close()
 
     
