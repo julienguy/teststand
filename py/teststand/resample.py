@@ -13,7 +13,7 @@ def resample_to_same_wavelength_grid(spectra, ivar, wave) :
     resampled_ivar      = np.zeros((nfibers, same_wave.size))
 
     #  Iterating resampling function on each fibers
-    for fiber in xrange(nfibers) :
+    for fiber in range(nfibers) :
         resampled_spectra[fiber], resampled_ivar[fiber] = resample_flux(same_wave, wave[fiber], spectra[fiber], ivar[fiber])
     
     return (resampled_spectra, resampled_ivar, same_wave)

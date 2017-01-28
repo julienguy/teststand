@@ -91,10 +91,10 @@ def boxcar(psf, image_file, nfibers=None, width=7) :
 # Using legendre's polynomial to get a spectrum per fiber
 ###
 
-    for fiber in xrange(nfibers_to_extract) :
+    for fiber in range(nfibers_to_extract) :
         log.info("extracting fiber #%03d"%fiber)
         x1_of_y, x2_of_y = invert_legendre_polynomial(wavemin, wavemax, ycoef, xcoef, fiber, npix_y, wave_of_y, width)
-        for y in xrange(npix_y) :
+        for y in range(npix_y) :
             #   Checking if there's a dead pixel
             nb_invalidPix   = np.sum(flux_ivar[y, x1_of_y[y]:x2_of_y[y]] <= 0)
             if nb_invalidPix == 0 :

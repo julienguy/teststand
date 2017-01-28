@@ -56,7 +56,7 @@ def plot_graph(frame, nfibers=None, start=0, end=None, only=False, opt_err=False
     
     fig = pylab.figure()
     pl  = pylab.subplot(1,1,1)
-    for fiber in xrange(start, end) :
+    for fiber in range(start, end) :
         log.info("Plotting fiber %03d" % fiber)
         if opt_err :
             err = np.sqrt(1./ (ivar + (ivar == 0))) * (ivar > 0)

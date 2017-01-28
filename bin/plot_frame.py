@@ -32,7 +32,7 @@ frame_file  = pyfits.open(args.frame)
 fig=None
 if args.fibers is not None :
     nb = args.fibers.split(',')
-    for i in xrange(len(nb)) :
+    for i in range(len(nb)) :
         if nb[i].isdigit() == False :
             tmp = nb[i].split(':')
             if ((len(tmp) is 2) and tmp[0].isdigit() == True and tmp[1].isdigit() == True) :
