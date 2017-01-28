@@ -32,21 +32,20 @@ psf=pyfits.open(args.psf)
 cam=psf[0].header["CAMERA"].strip()
 arm=cam[0].lower()
 if not arm in ['b','r','z'] :
-    print "camera arm must be b, r or z, and read '%s' in psf header"%arm
+    print("camera arm must be b, r or z, and read '%s' in psf header"%arm)
     sys.exit(12)
 
-#print psf[0].header
-#print psf.info()
+
 wavemin=psf[0].header["WAVEMIN"]
 wavemax=psf[0].header["WAVEMAX"]
-print "wavemin,wavemax=",wavemin,wavemax
+print("wavemin,wavemax=",wavemin,wavemax)
 xcoef=psf[0].data
 ycoef=psf[1].data
 sigma=psf[2].data
-print "xcoef.shape=",xcoef.shape
-print "ycoef.shape=",ycoef.shape
+print("xcoef.shape=",xcoef.shape)
+print("ycoef.shape=",ycoef.shape)
 nspec=xcoef.shape[0]
-print "nspec=",nspec
+print("nspec=",nspec)
 
 wave=np.linspace(wavemin,wavemax,100)
 mwave=np.mean(wave)
@@ -78,12 +77,12 @@ for spec in range(nspec) :
     dy=np.gradient(y)
     dw=np.gradient(wave)
     dwdy=dw/dy
-    print "fiber #%d min mean max dw/dy = %f %f %f "%(spec,np.min(dwdy),np.mean(dwdy),np.max(dwdy))
+    print("fiber #%d min mean max dw/dy = %f %f %f "%(spec,np.min(dwdy),np.mean(dwdy),np.max(dwdy)))
     min_dwdy=min(min_dwdy,np.min(dwdy))
     max_dwdy=max(max_dwdy,np.max(dwdy))
     mean_dwdy += np.mean(dwdy)
 mean_dwdy/=nspec
-print "total min mean max dw/dy = %f %f %f "%(min_dwdy,mean_dwdy,max_dwdy)
+print("total min mean max dw/dy = %f %f %f "%(min_dwdy,mean_dwdy,max_dwdy))
 
 a0.set_xlabel("X CCD")
 a0.set_ylabel("Y CCD")
@@ -99,7 +98,7 @@ a2.set_ylabel("PSF sigma")
 if False :
     mx=np.array(mx)
     dx=(mx-np.roll(mx,1))[1:]
-    print dx[:12]
+    print(dx[:12])
     a3.plot(dx,"o-")
     a3.set_xlabel("spec #")
     a3.set_ylabel("Delta X CCD @%dA"%int(mwave))
@@ -111,27 +110,13 @@ if args.sim :
         fibers = fm["FIBER"][:nspec]
     else :
         fibers = np.arange(nspec)
-        print "assuming it's the first %d fibers in the sims (if wrong, rerun with --fibermap option)"%nspec
+        print("assuming it's the first %d fibers in the sims (if wrong, rerun with --fibermap option)"%nspec)
     psf = desimodel.io.load_psf(arm)
-    
-
-
-    """
-    print "loading simpix traces",args.simpix
-    simpix=pyfits.open(args.simpix)
-    simpix.info()
-    xcoef_truth=simpix[1].data
-    xwavemin_truth=simpix[1].header["WAVEMIN"]
-    xwavemax_truth=simpix[1].header["WAVEMAX"]
-    ycoef_truth=simpix[2].data
-    ywavemin_truth=simpix[2].header["WAVEMIN"]
-    ywavemax_truth=simpix[2].header["WAVEMAX"]
-    """
     
     a0=pylab.subplot(ny,nx,pcount) ; pcount +=1
     a1=pylab.subplot(ny,nx,pcount) ; pcount +=1
     for spec,fiber in enumerate(fibers) : 
-        print "spec #%d fiber #%d"%(spec,fiber)
+        print("spec #%d fiber #%d"%(spec,fiber))
         x = legval(u(wave,wavemin,wavemax), xcoef[spec])
         y = legval(u(wave,wavemin,wavemax), ycoef[spec])
         x_truth = psf.x(int(fiber),wave)

@@ -12,7 +12,7 @@ def readpsf(filename) :
         psftype=pyfits.open(filename)[0].header["PSFTYPE"]
     except KeyError :
         psftype=""
-    print "PSF Type=",psftype
+    print("PSF Type=",psftype)
     if psftype=="GAUSS-HERMITE" :
         return specter.psf.GaussHermitePSF(filename)
     elif psftype=="SPOTGRID" :
@@ -39,7 +39,7 @@ x=np.tile(np.linspace(-hw,hw,n1d),(n1d,1))
 y=x.T
 fpix=psf._value(x+xy[0],y+xy[1],args.fiber,args.wave)
 ds=(x[0,1]-x[0,0])*(y[1,0]-x[0,0])
-print ds
+print(ds)
 fpix *= 1./(np.sum(fpix*ds))
 
 pyfits.writeto(args.output,fpix,clobber=True)

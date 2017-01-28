@@ -24,7 +24,7 @@ zoom=18
 image=np.zeros((psf.npix_y/zoom,psf.npix_x/zoom))
 for fiber in range(psf.nspec) :
     for wavelength in wave :
-        print fiber,wavelength
+        print(fiber,wavelength)
         x,y = psf.xy(fiber,wavelength)
         xslice,yslice,pix = psf.xypix(fiber,wavelength)
         
@@ -33,7 +33,7 @@ for fiber in range(psf.nspec) :
         try :
             image[yslice,xslice] += pix
         except ValueError :
-            print "failed for fiber wave=",fiber,wavelength
+            print("failed for fiber wave=",fiber,wavelength)
             pass
 
 fig=pylab.figure()

@@ -59,7 +59,7 @@ for filename in args.input :
 spectra=np.array(spectra)
 spectra=np.median(spectra,axis=0)
 ny=spectra.shape[-1]
-print "ny=",ny
+print("ny=",ny)
 
 #selected_fibers=np.arange(10,20)
 selected_fibers=np.arange(0,20)
@@ -82,7 +82,7 @@ for loop in range(10) :
         rspectra[f] /= meanf
     x/=np.mean(x[selected_fibers])
     rms=np.std(x[selected_fibers])
-    print loop,rms
+    print(loop,rms)
     mrspec=np.median(rspectra[selected_fibers],axis=0)
     if rms<1e-4 :
         break
@@ -119,7 +119,7 @@ for amp in range(2) :
             fibers = np.arange(0,10)
         else :
             fibers = np.arange(10,20)
-    print "using",fibers
+    print("using",fibers)
     for fiber in fibers :
         plt.plot(spectra[fiber],c="gray",alpha=0.2)
     mspec=np.median(spectra[fibers],axis=0)
@@ -155,7 +155,7 @@ for amp in range(2) :
         amp2="D"
         
     ratio = pol1(ny/2)/pol2(ny/2)
-    print "ADU flux ratio %s/%s = gain_%s/gain_%s = %f "%(amp1,amp2,amp2,amp1,ratio)
+    print("ADU flux ratio %s/%s = gain_%s/gain_%s = %f "%(amp1,amp2,amp2,amp1,ratio))
     
     # we want f_elec_1 = f_elec_2
     #         gain_1 * f_adu_1 = gain_2 *f_adu_2

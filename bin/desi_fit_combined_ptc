@@ -88,13 +88,13 @@ for amp in amplifiers :
     for s,filename in enumerate(args.input) :
         h=pyfits.open(filename)
         if not "MFLUX%s"%amp in h :
-            print "no MFLUX%s"%amp
+            print("no MFLUX%s"%amp)
             has_this_amp=False
             break
         emflux=h["MFLUX%s"%amp].data
         evarflux=h["VARFLUX%s"%amp].data
         readvar=np.mean(evarflux[emflux<200])
-        print filename,amp,"readvar=",readvar
+        print(filename,amp,"readvar=",readvar)
         
         if mflux is None :
             mflux=emflux
@@ -107,16 +107,7 @@ for amp in amplifiers :
         h.close()
 
     samples=np.unique(sample).astype(int)
-    if False :
-        print "remove readnoise per sample"
-        for s in samples :
-            ok=np.where(mflux[sample==s]<300)[0]
-            readvar=np.median(varflux[sample==s][ok])
-            print s,readvar
-            varflux[sample==s] -= readvar
     
-
-        
     bins=np.linspace(-200,30000,30000/400)
     x,y,ey = profile(mflux,varflux,bins)
     
@@ -155,16 +146,16 @@ for amp in amplifiers :
             addvar -= 10.
             if addvar==0 :
                 break
-    print "chi2/ndf=%f/%d=%f (for add. var error=%d)"%(chi2,ndf,chi2/ndf,addvar)
-    print "coef=",c
-    print "coef err =",cerr
+    print("chi2/ndf=%f/%d=%f (for add. var error=%d)"%(chi2,ndf,chi2/ndf,addvar))
+    print("coef=",c)
+    print("coef err =",cerr)
     if c[-2]<0 : 
         c[-2]=0.
-        print "Amp %s gain = ?????"
+        print("Amp %s gain = ?????")
     else :
         gain     = 1./c[-2]
         gain_err = cerr[-2]/c[-2]**2
-        print "Amp %s gain = ${\mathbf %4.3f \pm %4.3f}$ "%(amp,gain,gain_err)
+        print("Amp %s gain = ${\mathbf %4.3f \pm %4.3f}$ "%(amp,gain,gain_err))
     
     
 

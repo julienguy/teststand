@@ -255,7 +255,7 @@ for img,filename in enumerate(args.images) :
 for amp  in args.amplifiers :    
     flux[amp]=np.array(flux[amp])
     ivar[amp]=np.array(ivar[amp])
-    #print amp, flux[amp].shape
+    #print(amp, flux[amp].shape)
 # start the analysis
 
 
@@ -368,7 +368,7 @@ for amp  in args.amplifiers :
         wave_of_y[amp]=awave
         log.info("done calibrating")
     
-    #print flux[amp].shape
+    #print(flux[amp].shape)
     
     npix=aflux.shape[1]
     mflux      = np.zeros(npix)
@@ -567,7 +567,7 @@ for amp  in args.amplifiers :
             coeff,coefferr = mypolfit(mc_mflux_bins,mc_varflux_bins,w,deg=args.deg,force_zero_offset=(not fit_offset))
             
             if loop>1 : # after some convergence
-                #print "adding array of size",mc_mflux_bins.shape
+                #print("adding array of size",mc_mflux_bins.shape)
                 saved_mc_mflux_bins.append(mc_mflux_bins)
                 saved_mc_varflux_bins.append(mc_varflux_bins)
         
@@ -586,11 +586,11 @@ for amp  in args.amplifiers :
             
                     
         if(False and args.plot and args.nmc > 2) :
-            print mc_mflux_bins.shape
+            print(mc_mflux_bins.shape)
             
             mc_mflux_bins   = np.array(saved_mc_mflux_bins)
             mc_varflux_bins = np.array(saved_mc_varflux_bins)
-            print mc_mflux_bins.shape
+            print(mc_mflux_bins.shape)
             nmc=np.sum(mc_mflux_bins>0,axis=0)
             ok=np.where(nmc>0)[0]
             mc_mflux_bins   = np.sum(mc_mflux_bins,axis=0)[ok]/nmc[ok]

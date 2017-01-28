@@ -45,19 +45,19 @@ psf=pyfits.open(args.psf)
 cam=psf[0].header["CAMERA"].strip()
 arm=cam[0].lower()
 if not arm in ['b','r','z'] :
-    print "camera arm must be b, r or z, and read '%s' in psf header"%arm
+    print("camera arm must be b, r or z, and read '%s' in psf header"%arm)
     sys.exit(12)
 
 wavemin=psf[0].header["WAVEMIN"]
 wavemax=psf[0].header["WAVEMAX"]
-print "wavemin,wavemax=",wavemin,wavemax
+print("wavemin,wavemax=",wavemin,wavemax)
 xcoef=psf[0].data
 ycoef=psf[1].data
 sigmacoef=psf[2].data
-print "xcoef.shape=",xcoef.shape
-print "ycoef.shape=",ycoef.shape
+print("xcoef.shape=",xcoef.shape)
+print("ycoef.shape=",ycoef.shape)
 nspec=xcoef.shape[0]
-print "nspec=",nspec
+print("nspec=",nspec)
 
 image_file=pyfits.open(args.image)
 flux        = image_file[0].data
@@ -96,7 +96,7 @@ for spec in range(nspec) :
         ymin=max(0,int(legval(u(wmin,wavemin,wavemax), ycoef[spec])))
         ymax=min(npix_y,int(legval(u(wmax,wavemin,wavemax), ycoef[spec])))
 
-        print spec,wmin,wmax,ymin,ymax
+        print(spec,wmin,wmax,ymin,ymax)
 
         
         sw=np.zeros(x.size)
@@ -111,7 +111,7 @@ for spec in range(nspec) :
             dx=np.arange(x1_of_y[y],x2_of_y[y])-xc_of_y[y]
             model=np.exp(-dx**2/2./sigma_of_y[y]**2)
             model *= np.sum(prof)/np.sum(model)
-            #print dx
+            
             tmp_w=np.interp(x,dx,ivar)
             tmp_wf=np.interp(x,dx,ivar*prof)
             tmp_wm=np.interp(x,dx,ivar*model)
@@ -128,7 +128,7 @@ for spec in range(nspec) :
         mprof=swm/(sw+(sw==0))
         
         sprof=np.sum(prof)
-        print spec,ibin,"sprof=",sprof
+        print(spec,ibin,"sprof=",sprof)
         if sprof>0 :
             a[ibin,spec].plot(x,prof/sprof,c="b")
             a[ibin,spec].plot(x,mprof/sprof,c="r")

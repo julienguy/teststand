@@ -31,8 +31,8 @@ log         = get_logger()
 args        = parser.parse_args()
 
 if args.outframe is None and not args.show :
-    print "you don't want to plot or save the spectra, so there's no point extracting the data :-)"
-    print "try %s --help"%(sys.argv[0])
+    print("you don't want to plot or save the spectra, so there's no point extracting the data :-)")
+    print("try %s --help"%(sys.argv[0]))
     sys.exit(1)
 
 psf         = pyfits.open(args.psf)

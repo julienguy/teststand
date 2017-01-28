@@ -28,7 +28,7 @@ args        = parser.parse_args()
 psf=pyfits.open(args.psf)
 cam=psf[1].header["CAMERA"].strip().replace("'","").strip()
 arm=cam[0]
-print "CAMERA=",cam,"ARM=",arm
+print("CAMERA=",cam,"ARM=",arm)
 
 params=psf[1].data["PARAM"]
 for i in range(params.size) :
@@ -41,7 +41,7 @@ ghsigy_index= np.where(params=="GHSIGY")[0][0]
 wavemin=psf[1].data["WAVEMIN"][xindex]
 wavemax=psf[1].data["WAVEMAX"][xindex]
 if psf[1].data["WAVEMIN"][yindex] != wavemin :
-    print "unexpected difference"
+    print("unexpected difference")
     sys.exit(12)
 
 fibermin=int(psf[1].header["FIBERMIN"])
@@ -54,7 +54,7 @@ ghsigx_coef=table["COEFF"][ghsigx_index]
 ghsigy_coef=table["COEFF"][ghsigy_index]
 
 
-print "wavemin,wavemax=",wavemin,wavemax
+print("wavemin,wavemax=",wavemin,wavemax)
 nspec=xcoef.shape[0]
 
 wave=np.linspace(wavemin,wavemax,100)
@@ -120,7 +120,7 @@ if args.sim :
         fibers = fm["FIBER"][:nspec]
     else :
         fibers = np.arange(nspec)
-        print "assuming it's the first %d fibers in the sims (if wrong, rerun with --fibermap option)"%nspec
+        print("assuming it's the first %d fibers in the sims (if wrong, rerun with --fibermap option)"%nspec)
     
     psf = desimodel.io.load_psf(arm)
     

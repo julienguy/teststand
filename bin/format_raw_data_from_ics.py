@@ -30,8 +30,8 @@ parser.add_argument('-o','--outfile', type = str, default = None, required=True,
 
 args = parser.parse_args()
 
-print "Will read %s, reformat it and write it to %s"%(args.infile,args.outfile)
-print "This is a minimal reformatting of ICS raw data to adapt to DESI soft"
+print("Will read %s, reformat it and write it to %s"%(args.infile,args.outfile))
+print("This is a minimal reformatting of ICS raw data to adapt to DESI soft")
 
 ffile=pyfits.open(args.infile)
 ffile.info()
@@ -41,23 +41,23 @@ header=ffile[0].header
 try :
     date_obs=header["DATE-OBS"]
 except KeyError :
-    print "no DATE-OBS, cannot guess ICS version, quit"
+    print("no DATE-OBS, cannot guess ICS version, quit")
     sys.exit(1)
 date=parse_date_obs(date_obs)
-print "Observation date : %d"%date
+print("Observation date : %d"%date)
 ICS_VERSION=0
 if date <= 20161027    : ICS_VERSION=0
 elif  date <= 20161107 : ICS_VERSION=1
 elif  date <= 20161110 : ICS_VERSION=2
 elif  date <= 20161123 : ICS_VERSION=3
 else                   : ICS_VERSION=4
-print "Guessed ICS_VERSION : %d"%ICS_VERSION
+print("Guessed ICS_VERSION : %d"%ICS_VERSION)
 
 if ICS_VERSION==3 :
-    print "Do not do anything for ICS_VERSION>=3"
+    print("Do not do anything for ICS_VERSION>=3")
     sys.exit(0)
 if ICS_VERSION==1 :
-    print "ERROR : I haven't implemented the formatting for ICS_VERSION=1"
+    print("ERROR : I haven't implemented the formatting for ICS_VERSION=1")
     sys.exit(1)
 
 extnames=[]
@@ -73,11 +73,11 @@ elif ICS_VERSION==4 :
     extnames=["B1","R1","Z1"]
     cameras=["b1","r1","z1"]
 else :
-    print "ERROR : don't know about ICS_VERSION=%d"%ICS_VERSION
+    print("ERROR : don't know about ICS_VERSION=%d"%ICS_VERSION)
     sys.exit(0)
 
 for extname,camera in zip(extnames,cameras) :
-    print "Looking at extname %s"% extname
+    print("Looking at extname %s"% extname)
     hdu=ffile[extname]
     header=hdu.header
     if ICS_VERSION<=2 :
@@ -85,7 +85,7 @@ for extname,camera in zip(extnames,cameras) :
         header["EXTNAME"]=camera
     
     if ICS_VERSION==0 and camera=="R1" :
-        print "WARNING : changing DATASEC,CCDSEC,BIASEC for",extname
+        print("WARNING : changing DATASEC,CCDSEC,BIASEC for",extname)
         header["DATASEC1"]='[10:2064,4:2065]'
         d1xmin,d1xmax,d1ymin,d1ymax = parse_sec_keyword(header["DATASEC1"])
         header["PRESEC1"]='[1:%d,%d:%d]'%(d1xmin-1,d1ymin,d1ymax)
@@ -116,12 +116,12 @@ for extname,camera in zip(extnames,cameras) :
         header["BIASSEC4"]='[%d:%d,%d:%d]'%(b2xmin,b2xmax,d3ymin,d3ymax)
         header["CCDSEC4"]='[%d:%d,%d:%d]'%(c2xmin,c2xmax,c3ymin,c3ymax)
     elif ICS_VERSION==1 :
-        print "ERROR : not implemented"
+        print("ERROR : not implemented")
     else :
-        print "do not change data sec"
+        print("do not change data sec")
 
 
-    print "WARNING : changing gains"
+    print("WARNING : changing gains")
     reference_gain=1.
     header["GAIN1"]=reference_gain
     header["GAIN2"]=reference_gain
@@ -131,9 +131,9 @@ for extname,camera in zip(extnames,cameras) :
 
     if ICS_VERSION<=1 and camera=="R1" :
 
-        print "WARNING : Flip image along Y for camera %s and ICS VERSION=%d"%(camera,ICS_VERSION)
+        print("WARNING : Flip image along Y for camera %s and ICS VERSION=%d"%(camera,ICS_VERSION))
         hdu.data = hdu.data[::-1,:]
-        print "now modify all SEC info"
+        print("now modify all SEC info")
         xmin,xmax,ymin,ymax = parse_sec_keyword(header["CCDSEC4"])        
         ny_ccd=ymax
         ny_input=header["NAXIS2"]
@@ -153,13 +153,13 @@ for extname,camera in zip(extnames,cameras) :
                 key="%s%d"%(sec,amp) # DO NOT CHANGE AMP NAMES, CONFUSING
                 old=header[key]
                 header[key]='[%d:%d,%d:%d]'%(xmin,xmax,flipped_ymin,flipped_ymax)
-                print "%s %s -> %s"%(key,old,header[key])
+                print("%s %s -> %s"%(key,old,header[key]))
 
     
 
 
     if ICS_VERSION==4 and camera.lower() == "b1" :
-         print "WARNING : rearrange amplifiers  for camera=%s and ICS VERSION=%d"%(camera,ICS_VERSION)
+         print("WARNING : rearrange amplifiers  for camera=%s and ICS VERSION=%d"%(camera,ICS_VERSION))
          pixels=hdu.data
          nx=pixels.shape[1]
          ny=pixels.shape[0]
@@ -183,8 +183,8 @@ for extname,camera in zip(extnames,cameras) :
          BD=np.concatenate((B,D),axis=1)
          hdu.data=np.concatenate((BD,AC),axis=0)
          
-         print "WARNING, still need to figure out wavelength direction, fiber direction for amps C and D for camera=%s and ICS VERSION=%d"%(camera,ICS_VERSION)
-         print "WARNING, WOULD NEED TO CHANGE NAMES OF AMPLIFIERS"
+         print("WARNING, still need to figure out wavelength direction, fiber direction for amps C and D for camera=%s and ICS VERSION=%d"%(camera,ICS_VERSION))
+         print("WARNING, WOULD NEED TO CHANGE NAMES OF AMPLIFIERS")
          
          
          
@@ -193,10 +193,10 @@ for extname,camera in zip(extnames,cameras) :
          
 
     if ICS_VERSION==4 and camera.lower() == "z1" :
-         print "WARNING : flip along X (fibers) for camera=%s and ICS VERSION=%d"%(camera,ICS_VERSION)
+         print("WARNING : flip along X (fibers) for camera=%s and ICS VERSION=%d"%(camera,ICS_VERSION))
          hdu.data=hdu.data[:,::-1]
-         print "WARNING, WOULD NEED TO CHANGE NAMES OF AMPLIFIERS"
+         print("WARNING, WOULD NEED TO CHANGE NAMES OF AMPLIFIERS")
 
 ffile.writeto(args.outfile,clobber=True)
-print "wrote",args.outfile
-print "done"
+print("wrote",args.outfile)
+print("done")

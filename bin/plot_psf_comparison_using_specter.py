@@ -13,7 +13,7 @@ def readpsf(filename) :
         psftype=pyfits.open(filename)[0].header["PSFTYPE"]
     except KeyError :
         psftype=""
-    print "PSF Type=",psftype
+    print("PSF Type=",psftype)
     if psftype=="GAUSS-HERMITE" :
         return specter.psf.GaussHermitePSF(filename)
     elif psftype=="SPOTGRID" :
@@ -40,8 +40,8 @@ psf1=readpsf(args.psf1)
 psf2=readpsf(args.psf2)
 xy1=psf1.xy(args.fiber1,args.wave)
 xy2=psf2.xy(args.fiber2,args.wave)
-print "for psf1, xy=",xy1
-print "for psf2, xy=",xy2
+print("for psf1, xy=",xy1)
+print("for psf2, xy=",xy2)
 
 pylab.figure()
 hw=5.

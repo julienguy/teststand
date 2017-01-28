@@ -60,7 +60,7 @@ if args.subset :
             subset_ion.append((vals[1]))
             subset_intensity.append((float(vals[2])))
         else :
-            print "WARNING IGNORE LINE '%s'"%line.strip()
+            print("WARNING IGNORE LINE '%s'"%line.strip())
     ifile.close()
 
     subset_air_wave=np.array(subset_air_wave)
@@ -77,13 +77,13 @@ if args.subset :
     for wave,ion,intensity in zip(subset_wave,subset_ion,subset_intensity) :
         ok=np.where(nist_ion==ion)[0]
         if ok.size==0 :
-            print "no ",ion
+            print("no ",ion)
             continue
         j=np.argmin(np.abs(wave-nist_wave[ok]))
         nwave=nist_wave[ok][j]
         delta=np.abs(nwave-wave)
         if delta>1. :
-            print "error no good match of",wave,ion," delta=",delta
+            print("error no good match of",wave,ion," delta=",delta)
             continue
         nist_subset_wave.append(nwave)
         nist_subset_ion.append(ion)

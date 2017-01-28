@@ -6,19 +6,19 @@ import numpy as np
 import pylab
 import scipy.interpolate
 if not "DESIMODEL" in os.environ :
-    print "need DESIMODEL env. variable"
+    print("need DESIMODEL env. variable")
     sys.exit(12)
 
 psffile="%s/data/specpsf/psf-r.fits"%(os.environ["DESIMODEL"])
 desimodel_psf=pyfits.open(psffile)
 desimodel_psf.info()
 head=desimodel_psf[0].header
-print head
+print(head)
 desimodel_CCDPIXSZ=head["CCDPIXSZ"]*1e3 # conversion from mm to um
 desimodel_PIXSIZE=head["PIXSIZE"]*1e3 # conversion from mm to um
 
-print "desimodel_CCDPIXSZ",desimodel_CCDPIXSZ,"um"
-print "desimodel_PIXSIZE",desimodel_PIXSIZE,"um"
+print("desimodel_CCDPIXSZ",desimodel_CCDPIXSZ,"um")
+print("desimodel_PIXSIZE",desimodel_PIXSIZE,"um")
 
 defocus_PIXSIZE=0
 
@@ -30,7 +30,7 @@ for f in os.listdir(".") :
     if f.find('DESI_FOCUSTEST_RED_')==0 :
         pos=float(f.split("fx=")[1].split("mm")[0]) 
         wave=float(f.split("_wl=")[1].split("um")[0])*1e4 # A
-        print f,pos,wave
+        print(f,pos,wave)
         defocus_psf_pos.append(pos)
         defocus_psf_wave.append(wave)
         defocus_psf_filename.append(f)
@@ -40,7 +40,7 @@ for f in os.listdir(".") :
             defocus_PIXSIZE=h[0].header["PIXEL"]
         else :
             if defocus_PIXSIZE != h[0].header["PIXEL"] :
-                print "warning DIFFERENT PIXEL SIZE"
+                print("warning DIFFERENT PIXEL SIZE")
                 sys.exit(12)
         
         defocus_psf_3dimage.append(h[0].data.astype(float))
@@ -49,18 +49,18 @@ head=pyfits.open(defocus_psf_filename[0])[0].header
 defocus=np.zeros((31))
 for i in range(31) :
     defocus[i]=float(head["DEFOC%02d"%i])
-print "defocus values (in mm) :",defocus
+print("defocus values (in mm) :",defocus)
     
 t_wave=np.unique(defocus_psf_wave)
 t_pos=np.unique(defocus_psf_pos)
-print "defocus waves = ",t_wave
-print "defocus positions = ",t_pos
-print "desimodel waves = ",desimodel_psf["SPOTWAVE"].data
+print("defocus waves = ",t_wave)
+print("defocus positions = ",t_pos)
+print("desimodel waves = ",desimodel_psf["SPOTWAVE"].data)
 
 spots=desimodel_psf["SPOTS"].data
 
 for defocus_index in range(len(defocus)) :
-    print "doing defocus values (in mm) :",defocus[defocus_index]
+    print("doing defocus values (in mm) :",defocus[defocus_index])
 
     for i in range(spots.shape[0]) :
         for j in range(spots.shape[1]) :
@@ -77,7 +77,7 @@ for defocus_index in range(len(defocus)) :
             # find img            
             defoc_psf_index=np.where((defocus_psf_wave==defocus_w)&(defocus_psf_pos==defocus_pos))[0]
             
-            print i,j,"w=",spot_wave,"pos=",spot_pos,"->","w=",defocus_w,"pos=",defocus_pos,"index=",defoc_psf_index
+            print(i,j,"w=",spot_wave,"pos=",spot_pos,"->","w=",defocus_w,"pos=",defocus_pos,"index=",defoc_psf_index)
 
             plot=False
 
@@ -134,7 +134,7 @@ for defocus_index in range(len(defocus)) :
     desimodel_psf["SPOTS"].data = spots
     ofilename="psf-r_defoc_%04.3fmm.fits"%defocus[defocus_index]
     desimodel_psf.writeto(ofilename,clobber=True)
-    print "wrote",ofilename
+    print("wrote",ofilename)
 
 
 

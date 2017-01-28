@@ -23,13 +23,13 @@ try :
 except ValueError:
     hdu = args.hdu
 
-print "read images ..."
+print("read images ...")
 images=[]
 shape=None
 primary_header=None
 image_header=None
 for filename in args.image :
-    print filename
+    print(filename)
     fitsfile=pyfits.open(filename)
     
     image=fitsfile[hdu].data.astype("float32")
@@ -43,13 +43,13 @@ for filename in args.image :
         image_header=fitsfile[hdu].header
 
 if args.mean :
-    print "compute mean image ..."
+    print("compute mean image ...")
     medimage=np.mean(images,axis=0).reshape(shape)
 else :
-    print "compute median image ..."                                                                                                                 
+    print("compute median image ..."                                                                                                                 
     medimage=np.median(images,axis=0).reshape(shape)
 
-print "write ..."
+print("write ...")
 if not args.with_primary_header :
     hdulist=pyfits.HDUList([pyfits.PrimaryHDU(medimage)])
     hdu=0

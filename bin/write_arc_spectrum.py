@@ -28,7 +28,7 @@ for line in ifile.readlines() :
         ion.append((vals[1]))
         intensity.append((float(vals[2])))
     else :
-        print "WARNING IGNORE LINE '%s'"%line.strip()
+        print("WARNING IGNORE LINE '%s'"%line.strip())
     ifile.close()
 wave=np.array(wave)
 ion=np.array(ion)
@@ -50,4 +50,4 @@ hdulist=fits.HDUList([fits.PrimaryHDU()])
 hdulist.append(fits.BinTableHDU.from_columns(cols))
 hdulist.writeto(args.outfile,clobber=True)
 
-print "wrote %d lines in %s"%(wave.size,args.outfile)
+print("wrote %d lines in %s"%(wave.size,args.outfile))

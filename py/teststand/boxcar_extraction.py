@@ -54,8 +54,8 @@ def boxcar(psf, image_file, nfibers=None, width=7) :
     log.info("wavelength range : [%f,%f]"%(wavemin,wavemax))
     
     
-    print "xcoef.shape",xcoef.shape
-    print "ycoef.shape",ycoef.shape
+    log.debug("xcoef.shape",xcoef.shape)
+    log.debug("ycoef.shape",ycoef.shape)
     
 
     flux        = image_file[0].data

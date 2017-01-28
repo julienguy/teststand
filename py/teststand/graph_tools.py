@@ -72,7 +72,7 @@ def plot_graph(frame, nfibers=None, start=0, end=None, only=False, opt_err=False
     
     pylab.xlabel("Wavelength [A]")
     if logscale :
-        print "set y log scale"
+        log.info("set y log scale")
         pylab.yscale("log")
     if title is not None :
         pl.set_title(title)
@@ -80,8 +80,8 @@ def plot_graph(frame, nfibers=None, start=0, end=None, only=False, opt_err=False
     if opt_2d :
         pylab.figure()
         if len(wave.shape) == 1 :
-            # print wave[0],wave[-1],start-0.5,end-0.5
-            # print spectra[start:end].shape
+            # print(wave[0],wave[-1],start-0.5,end-0.5)
+            # print(spectra[start:end].shape)
             pylab.imshow(spectra[start:end],
                         # aspect = spectra.shape[1] / float(end - start),
                         aspect = 'auto',

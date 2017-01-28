@@ -81,7 +81,7 @@ spectra2=np.array(spectra2)
 spectra2=np.mean(spectra2,axis=0)
 
 ny=spectra1.shape[-1]
-print "ny=",ny
+print("ny=",ny)
 colors=["b","g","orange","r"]
 
 fluxmin=200

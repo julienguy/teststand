@@ -23,7 +23,7 @@ except ValueError:
 image=None
 nimages=0
 for filename in args.image :
-    print filename
+    print(filename)
     if image is None :
         image = pyfits.open(filename)[hdu].data.astype("float32")
     else :
