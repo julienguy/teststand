@@ -122,8 +122,8 @@ def invert_legendre_polynomial(wavemin, wavemax, ycoef, xcoef, fiber, npix_y, wa
     #   Determines wavelength intensity (x) based on Y
     x_of_y              = legval(u(wave_of_y[fiber], wavemin, wavemax), xcoef[fiber])
     #   Ascertain X by using low and high uncertainty
-    x1_of_y             = (np.floor(x_of_y).astype(int) - width/2).astype(int)
-    x2_of_y             = (np.floor(x_of_y).astype(int) + width/2 + 2).astype(int)
+    x1_of_y             = (np.floor(x_of_y).astype(int) - width//2).astype(int)
+    x2_of_y             = (np.floor(x_of_y).astype(int) + width//2 + 2).astype(int)
     return (x1_of_y, x2_of_y)
 
     #   comment for : invert_legendre_polynomial

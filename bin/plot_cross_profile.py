@@ -1,12 +1,11 @@
 #!/usr/bin/env python
 
 import numpy as np
-import pyfits
+import astropy.io.fits as pyfits
 import pylab
 from numpy.polynomial.legendre import legval
 import desimodel.io
 import desispec.io
-#from specter.psf.gausshermite import GaussHermitePSF
 import sys
 import argparse
 from numpy.polynomial.legendre import legval, legfit

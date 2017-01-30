@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 
 import numpy as np
-import pyfits
+import astropy.io.fits as pyfits
 import pylab
 from numpy.polynomial.legendre import legval
 import desimodel.io
@@ -32,7 +32,7 @@ print("CAMERA=",cam,"ARM=",arm)
 
 params=psf[1].data["PARAM"]
 for i in range(params.size) :
-    params[i]=string.strip(params[i])
+    params[i]=params[i].strip()
 
 xindex= np.where(params=="X")[0][0]
 yindex= np.where(params=="Y")[0][0]
