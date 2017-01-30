@@ -7,7 +7,7 @@ from desispec.log import get_logger
 #   RETURNS FITS FILE INCLUDING ELECTRONS QUANTITY
 ################
 
-def boxcar(psf, image_file, nfibers=None, width=7) :
+def boxcar(psf, image_file, fibers=None, width=7) :
     """Find and returns  wavelength  spectra and inverse variance
 
         ----------
@@ -20,7 +20,7 @@ def boxcar(psf, image_file, nfibers=None, width=7) :
         pix     : File Descriptor
         Interpreted photons using the wavelength.
 
-        nfibers : Optional. If left empty, will set the max number of fibers.
+        fibers : Optional. If left empty, will extract all fibers.
 
         -------
         Returns
@@ -50,7 +50,11 @@ def boxcar(psf, image_file, nfibers=None, width=7) :
         i=np.where(table["PARAM"]=="Y")[0][0]
         ycoef=table["COEFF"][i]
         i=np.where(table["PARAM"]=="GHSIGX")[0][0]
-        xsig=table["COEFF"][i] 
+        xsig=table["COEFF"][i]
+
+    if fibers is None :
+        fibers = np.arange(xcoef.shape[0])
+    
     log.info("wavelength range : [%f,%f]"%(wavemin,wavemax))
     
     
@@ -72,60 +76,58 @@ def boxcar(psf, image_file, nfibers=None, width=7) :
     #   We are going to extract one flux per fiber per Y pixel (total = nfibers x npix_y)
     npix_y  = flux.shape[0]
     npix_x  = flux.shape[1]
-
     
-    nfibers_to_extract = xcoef.shape[0]
-    if nfibers is not None :
-        if nfibers > nfibers_to_extract :
-           log.warning("only %d fibers will be extracted" % nfibers_to_extract)
-        nfibers_to_extract = min(nfibers,nfibers_to_extract)
+    nfibers = xcoef.shape[0]
+    if np.max(fibers) >= nfibers :
+        log.warning("requested fiber numbers %s exceed number of fibers in file %d"%(str(fibers),nfibers))
+        ii=np.where(fibers<nfibers)
+        fibers=fibers[ii]
     
     #   Flux as a function of wavelength
-    spectra             = np.zeros((nfibers_to_extract,npix_y))
+    spectra             = np.zeros((fibers.size,npix_y))
     #   Inverse-variance of spectrum
-    spectra_ivar        = np.zeros((nfibers_to_extract,npix_y))
+    spectra_ivar        = np.zeros((fibers.size,npix_y))
     #   Wavelength
-    wave_of_y           = np.zeros((nfibers_to_extract, npix_y))
+    wave_of_y           = np.zeros((fibers.size, npix_y))
 
 ###
 # Using legendre's polynomial to get a spectrum per fiber
 ###
 
-    for fiber in range(nfibers_to_extract) :
+    for f,fiber in enumerate(fibers) :
         log.info("extracting fiber #%03d"%fiber)
-        x1_of_y, x2_of_y = invert_legendre_polynomial(wavemin, wavemax, ycoef, xcoef, fiber, npix_y, wave_of_y, width)
+        x1_of_y, x2_of_y, tmp_wave = invert_legendre_polynomial(wavemin, wavemax, ycoef, xcoef, fiber, npix_y, width)
+        wave_of_y[f] = tmp_wave
+        
+        
         for y in range(npix_y) :
             #   Checking if there's a dead pixel
             nb_invalidPix   = np.sum(flux_ivar[y, x1_of_y[y]:x2_of_y[y]] <= 0)
             if nb_invalidPix == 0 :
                 #   Sum of flux
-                spectra[fiber, y]   = np.sum(flux[y, x1_of_y[y]:x2_of_y[y]])
+                spectra[f, y]   = np.sum(flux[y, x1_of_y[y]:x2_of_y[y]])
                 #   Sum of variance
                 var                 = np.sum(flux_var[y, x1_of_y[y]:x2_of_y[y]])
                 #   Spectrum of inverse variance
-                spectra_ivar[fiber, y] = 1./var
-
+                spectra_ivar[f, y] = 1./var
+    
     log.info("Boxcar extraction complete")
     return spectra, spectra_ivar, wave_of_y
 
 def u(wave, wavemin, wavemax) :
     return 2. * (wave - wavemin)/(wavemax - wavemin) - 1.
 
-def invert_legendre_polynomial(wavemin, wavemax, ycoef, xcoef, fiber, npix_y, wave_of_y, width=7) :
+def invert_legendre_polynomial(wavemin, wavemax, ycoef, xcoef, fiber, npix_y, width=7) :
  
     #   Wavelength array used in 'invert_legendre_polynomial'
     wave                = np.linspace(wavemin, wavemax, 100)
     #   Determines value of Y, so we can know its coeficient and then its position
     y_of_wave           = legval(u(wave, wavemin, wavemax), ycoef[fiber])
     coef                = legfit(u(y_of_wave, 0, npix_y), wave, deg=ycoef[fiber].size)
-    wave_of_y[fiber]    = legval(u(np.arange(npix_y).astype(float), 0, npix_y), coef)
+    wave_of_y           = legval(u(np.arange(npix_y).astype(float), 0, npix_y), coef)
     #   Determines wavelength intensity (x) based on Y
-    x_of_y              = legval(u(wave_of_y[fiber], wavemin, wavemax), xcoef[fiber])
+    x_of_y              = legval(u(wave_of_y, wavemin, wavemax), xcoef[fiber])
     #   Ascertain X by using low and high uncertainty
     x1_of_y             = (np.floor(x_of_y).astype(int) - width//2).astype(int)
     x2_of_y             = (np.floor(x_of_y).astype(int) + width//2 + 2).astype(int)
-    return (x1_of_y, x2_of_y)
-
-    #   comment for : invert_legendre_polynomial
-    #   prefered input    = xmin, xmax, coef_of_x_to_y    |   TO BE
-    #   prefered output   = ymin, ymax, coef_of_y_to_x    |   SEEN
+    return (x1_of_y, x2_of_y, wave_of_y)

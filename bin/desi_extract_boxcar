@@ -3,10 +3,12 @@
 import argparse
 import sys
 import astropy.io.fits as pyfits
+import numpy as np
+import matplotlib.pyplot as plt
 
 from teststand.boxcar_extraction   import boxcar
 from teststand.resample            import resample_to_same_wavelength_grid
-from teststand.graph_tools         import plot_graph,show_graph
+from teststand.graph_tools         import plot_graph,parse_fibers
 from desispec.log                  import get_logger
 
 parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
@@ -16,15 +18,13 @@ parser.add_argument('-i','--image', type = str, default = None, required = True,
                     help = 'path of image fits file')
 parser.add_argument('-o','--outframe', type = str, default = None, required = False,
                     help = 'path of output frame file')
-parser.add_argument('-n','--nfibers', type = int, default = None, required = False,
-                    help = 'number of fibers (default=all)')
+parser.add_argument('--fibers', type=str, default = None, required = False,
+                    help = 'defines from_to which fiber to work on. (ex: --fibers=50:60,4 means that only fibers 4, and fibers from 50 to 60 (excluded) will be extracted)')
 parser.add_argument('--show', action='store_true',
                     help = 'plot result')
 parser.add_argument('-r','--resample', action='store_true',
                     help = 'resample to save wavelength grid')
-parser.add_argument('--plot', type=str,
-                    help = 'defines from_to which fiber to work on. (ex: --plot=50,60 means that only fibers 50 to 60 included will be plotted')
-parser.add_argument('--width', type=int, default=7, required=False,
+parser.add_argument('--width', type=int, default=9, required=False,
                     help = 'extraction line width')
 
 log         = get_logger()
@@ -35,10 +35,15 @@ if args.outframe is None and not args.show :
     print("try %s --help"%(sys.argv[0]))
     sys.exit(1)
 
+fibers = parse_fibers(args.fibers)
+    
 psf         = pyfits.open(args.psf)
 image_file  = pyfits.open(args.image)
 
-spectra, ivar, wave = boxcar(psf, image_file, nfibers=args.nfibers,width=args.width)
+spectra, ivar, wave = boxcar(psf, image_file, fibers=fibers ,width=args.width)
+
+if fibers is None :
+    fibers = spectra.shape[0]
 
 if args.resample :
     log.info("Starting resampling...")
@@ -53,17 +58,8 @@ frame[0].header["EXTNAME"]="FLUX"
 if args.outframe is not None :
     frame.writeto(args.outframe,clobber=True)
 
-if args.plot or args.show :
-    
-    if not (args.plot) :
-        plot_graph(frame)
-    else :
-        nb = args.plot.split(',')
-        if ((len(nb) is 2) or (nb[0].isdigit == True and nb[1].isdigit == True)) :
-            plot_graph(frame, args.nfibers, nb[0], nb[1])
-        else :
-            log.error("--plot parsing error. correct format is : --plot=nb_from,nb_to")
-    log.info("Showing.......")
-    show_graph()
+if args.show :
+    plot_graph(frame,np.arange(spectra.shape[0]))
+    plt.show()
 
 log.info("Script done")
