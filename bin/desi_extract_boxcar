@@ -55,8 +55,17 @@ frame = pyfits.HDUList([pyfits.PrimaryHDU(spectra),
                         pyfits.ImageHDU(wave,name="WAVELENGTH")])
 frame[0].header["EXTNAME"]="FLUX"
 
+# add content of preproc header
+blacklist = ["EXTEND","SIMPLE","NAXIS1","NAXIS2","CHECKSUM","DATASUM","XTENSION","EXTNAME","COMMENT"]
+image_header = image_file[0].header
+for key in image_header:
+    if ( key not in blacklist ) and ( key not in frame[0].header ) :        
+        frame[0].header[key] = image_header[key] 
+
+
 if args.outframe is not None :
     frame.writeto(args.outframe,clobber=True)
+    log.info("wrote %s"%args.outframe)
 
 if args.show :
     plot_graph(frame,np.arange(spectra.shape[0]))
