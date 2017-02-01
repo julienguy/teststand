@@ -32,7 +32,6 @@ if args.key is None or len(args.key)==0 :
         if args.info :
             h.info()
             print("")
-        
         header=h[hdu].header
         print(header.tostring)
         print("")
@@ -47,6 +46,9 @@ line+=" filename"
 print(line)
 for filename in args.image :
     h=pyfits.open(filename)
+    if not hdu in h :
+        print("no HDU %s in %s"%(str(hdu),filename))
+        continue
     header=h[hdu].header
     line=""    
     for k in args.key :
