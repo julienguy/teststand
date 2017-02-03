@@ -26,6 +26,8 @@ parser.add_argument('-r','--resample', action='store_true',
                     help = 'resample to save wavelength grid')
 parser.add_argument('--width', type=int, default=9, required=False,
                     help = 'extraction line width')
+parser.add_argument('--sb', action='store_true',
+                    help = 'remove side bands of same width (only applicable for sparse fiber data for fine linearity studies')
 
 log         = get_logger()
 args        = parser.parse_args()
@@ -40,7 +42,7 @@ fibers = parse_fibers(args.fibers)
 psf         = pyfits.open(args.psf)
 image_file  = pyfits.open(args.image)
 
-spectra, ivar, wave = boxcar(psf, image_file, fibers=fibers ,width=args.width)
+spectra, ivar, wave = boxcar(psf, image_file, fibers=fibers ,width=args.width, side_bands=args.sb)
 
 if fibers is None :
     fibers = spectra.shape[0]
