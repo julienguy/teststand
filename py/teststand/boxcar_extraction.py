@@ -7,7 +7,7 @@ from desispec.log import get_logger
 #   RETURNS FITS FILE INCLUDING ELECTRONS QUANTITY
 ################
 
-def boxcar(psf, image_file, fibers=None, width=7) :
+def boxcar(psf, image_file, fibers=None, width=7, side_bands=False) :
     """Find and returns  wavelength  spectra and inverse variance
 
         ----------
@@ -64,7 +64,11 @@ def boxcar(psf, image_file, fibers=None, width=7) :
 
     flux        = image_file[0].data
     #   Inverse variance of the image's value
-    flux_ivar   = image_file[1].data
+    flux_ivar   = image_file["IVAR"].data
+    #   Use masked pixels 
+    flux_mask   = image_file["MASK"].data
+    flux_ivar   *= (flux_mask==0)
+    
     #   Variance based on inverse variance's size
     flux_var    = np.zeros(flux_ivar.shape)
 
@@ -99,18 +103,32 @@ def boxcar(psf, image_file, fibers=None, width=7) :
         x1_of_y, x2_of_y, tmp_wave = invert_legendre_polynomial(wavemin, wavemax, ycoef, xcoef, fiber, npix_y, width)
         wave_of_y[f] = tmp_wave
         
-        
-        for y in range(npix_y) :
-            #   Checking if there's a dead pixel
-            nb_invalidPix   = np.sum(flux_ivar[y, x1_of_y[y]:x2_of_y[y]] <= 0)
-            if nb_invalidPix == 0 :
-                #   Sum of flux
-                spectra[f, y]   = np.sum(flux[y, x1_of_y[y]:x2_of_y[y]])
-                #   Sum of variance
-                var                 = np.sum(flux_var[y, x1_of_y[y]:x2_of_y[y]])
-                #   Spectrum of inverse variance
-                spectra_ivar[f, y] = 1./var
-    
+        hw=width//2
+        if not side_bands :
+            for y in range(npix_y) :
+                #   Checking if there's a dead pixel
+                nb_invalidPix   = np.sum(flux_ivar[y, x1_of_y[y]:x2_of_y[y]] <= 0)
+                if nb_invalidPix == 0 :
+                    #   Sum of flux
+                    spectra[f, y]   = np.sum(flux[y, x1_of_y[y]:x2_of_y[y]])
+                    #   Sum of variance
+                    var                 = np.sum(flux_var[y, x1_of_y[y]:x2_of_y[y]])
+                    #   Spectrum of inverse variance
+                    spectra_ivar[f, y] = 1./var
+        else :
+           for y in range(npix_y) :
+               #   Checking if there's a dead pixel
+               
+               nb_invalidPix   = np.sum(flux_ivar[y, x1_of_y[y]-hw:x2_of_y[y]+hw+1] <= 0)
+               if nb_invalidPix == 0 :
+                   #   Sum of flux
+                   spectra[f, y]   = np.sum(flux[y, x1_of_y[y]:x2_of_y[y]]) -  np.sum(flux[y, x1_of_y[y]-hw:x1_of_y[y]]) - np.sum(flux[y, x2_of_y[y]:x2_of_y[y]+hw+1])
+                   #   Sum of variance
+                   var                 = np.sum(flux_var[y, x1_of_y[y]-hw:x2_of_y[y]+hw+1])
+                   #   Spectrum of inverse variance
+                   spectra_ivar[f, y] = 1./var 
+
+
     log.info("Boxcar extraction complete")
     return spectra, spectra_ivar, wave_of_y
 
@@ -129,5 +147,5 @@ def invert_legendre_polynomial(wavemin, wavemax, ycoef, xcoef, fiber, npix_y, wi
     x_of_y              = legval(u(wave_of_y, wavemin, wavemax), xcoef[fiber])
     #   Ascertain X by using low and high uncertainty
     x1_of_y             = (np.floor(x_of_y).astype(int) - width//2).astype(int)
-    x2_of_y             = (np.floor(x_of_y).astype(int) + width//2 + 2).astype(int)
+    x2_of_y             = (np.floor(x_of_y).astype(int) + width//2 + 1).astype(int)
     return (x1_of_y, x2_of_y, wave_of_y)
