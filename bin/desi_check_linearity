@@ -60,6 +60,13 @@ parser.add_argument('-i1','--input1', type = str, default = None, required = Tru
 parser.add_argument('-i2','--input2', type = str, default = None, required = True, nargs="*", help = 'list of frames with longer exposure time')
 
 parser.add_argument('-c','--camera', type = str, default = None, required = False, help = 'camera name (for display)')
+parser.add_argument('--minflux', type = float, default = 200, required = False, help = 'min flux')
+parser.add_argument('--maxflux', type = float, default = 100000, required = False, help = 'max flux')
+parser.add_argument('--nbins', type = int, default = 200, required = False, help = 'number of bins')
+parser.add_argument('--amps', type = str, default = "ABCD", required = False, help = 'amplifiers')
+parser.add_argument('--sum-fibers', action = "store_true", help = 'average fibers before display')
+parser.add_argument('--ratio', type = float, default=0., help = 'expected linear ratio (to display model)')
+parser.add_argument('--nonlin', type = float, default=0., help = 'expected non-linear term (to display model)')
 
 args = parser.parse_args()
 wave=None
@@ -79,13 +86,15 @@ spectra1=np.array(spectra1)
 spectra1=np.mean(spectra1,axis=0)
 spectra2=np.array(spectra2)
 spectra2=np.mean(spectra2,axis=0)
+print(spectra1.shape)
+print(spectra2.shape)
 
 ny=spectra1.shape[-1]
 print("ny=",ny)
 colors=["b","g","orange","r"]
 
-fluxmin=200
-bins=np.linspace(fluxmin,10000,100)
+
+bins=np.linspace(args.minflux,args.maxflux,args.nbins)
 
 if args.camera is None :
     title="flux-ratio"
@@ -94,28 +103,30 @@ else :
 
 fig=plt.figure(title)
 
-for a,amp in enumerate(["A","B","C","D"]) :
+for a,amp in enumerate(list(args.amps)) :
     if amp=="A" or amp=="C" :
         fibers=np.arange(0,10)
     else :
         fibers=np.arange(10,20)
     margin=50
     if amp=="A" or amp == "B" :
-        yy=np.arange(margin,ny/2)
+        yy=np.arange(margin,ny//2).astype(int)
     else :
-        yy=np.arange(ny/2,ny-margin)
+        yy=np.arange(ny//2,ny-margin).astype(int)
 
     if args.camera is not None :
         label="%s AMP %s"%(args.camera,amp)
     else :
         label="AMP %s"%amp
     
-    sum_fibers = False
-    if sum_fibers :
+    print("fibers=",fibers)
+    print("yy in ",yy[0],yy[-1])
+    
+    if args.sum_fibers :
         x=np.array([])
         y=np.array([])
         for fiber in fibers :
-            ok=np.where(spectra2[fiber,yy]>fluxmin)[0]
+            ok=np.where(spectra2[fiber,yy]>args.minflux)[0]
             if ok.size==0 : continue
             ok=yy[ok]
             x = np.append(x,spectra2[fiber,ok])
@@ -124,14 +135,23 @@ for a,amp in enumerate(["A","B","C","D"]) :
         plt.errorbar(x,y,ey,fmt="o",color=colors[a],label=label)
     else :
         for fiber in fibers :                                                                                       
-            ok=np.where(spectra2[fiber,yy]>fluxmin)[0]
+            ok=np.where(spectra2[fiber,yy]>args.minflux)[0]
             if ok.size==0 : continue
             ok=yy[ok]
             x = spectra2[fiber,ok]
             y = spectra1[fiber,ok]/spectra2[fiber,ok]
             x,y,ey=profile(x,y,bins)
             plt.errorbar(x,y,ey,fmt="o",color=colors[a],label=label)
+            plt.errorbar(x,y,ey,fmt="-")
+            
             label=None
+
+if args.ratio != 0. :
+    x=np.linspace(args.minflux,args.maxflux,100)
+    y = args.ratio*x # true
+    y *= (1.-args.nonlin*y)
+    plt.plot(x,y/x,"-",label="model for 1/2=%f and nonlin=%g"%(args.ratio,args.nonlin))
+
 plt.grid()
 plt.xlabel("mean flux per pixel in sample 2")
 plt.ylabel("ratio of flux per pixel sample 1 / sample 2")
