@@ -23,11 +23,12 @@ def profile(xx,yy,bins) :
 
 def mypolfit(x,y,w,deg,force_zero_offset=False) :
     n=deg+1
-    
+
+    xm=np.mean(x)
     
     swxn=np.zeros(2*n)
     for i in range(2*n) :
-        swxn[i]=np.sum(w*x**i)
+        swxn[i]=np.sum(w*(x/xm)**i)
     
     A=np.zeros((n,n))
     for i in range(n) :
@@ -36,7 +37,7 @@ def mypolfit(x,y,w,deg,force_zero_offset=False) :
     
     B=np.zeros((n))  
     for i in range(n) :
-        B[i]=np.sum(w*x**i*y)
+        B[i]=np.sum(w*(x/xm)**i*y)
 
     
     if force_zero_offset :
@@ -46,6 +47,10 @@ def mypolfit(x,y,w,deg,force_zero_offset=False) :
     
     p=Ai.dot(B)
     err=np.sqrt(np.diag(Ai).copy())
+    for i in range(p.size) :
+        p[i] /= xm**i
+        err[i] /= xm**i
+    
     return p[::-1],err[::-1]
 
 
@@ -65,8 +70,7 @@ parser.add_argument('--maxflux', type = float, default = 100000, required = Fals
 parser.add_argument('--nbins', type = int, default = 200, required = False, help = 'number of bins')
 parser.add_argument('--amps', type = str, default = "ABCD", required = False, help = 'amplifiers')
 parser.add_argument('--sum-fibers', action = "store_true", help = 'average fibers before display')
-parser.add_argument('--ratio', type = float, default=0., help = 'expected linear ratio (to display model)')
-parser.add_argument('--nonlin', type = float, default=0., help = 'expected non-linear term (to display model)')
+parser.add_argument('--deg', type = int, default=1, help = 'non-linear degree (above linear)')
 
 args = parser.parse_args()
 wave=None
@@ -121,7 +125,6 @@ for a,amp in enumerate(list(args.amps)) :
     
     print("fibers=",fibers)
     print("yy in ",yy[0],yy[-1])
-    
     if args.sum_fibers :
         x=np.array([])
         y=np.array([])
@@ -134,7 +137,10 @@ for a,amp in enumerate(list(args.amps)) :
         x,y,ey=profile(x,y,bins)
         plt.errorbar(x,y,ey,fmt="o",color=colors[a],label=label)
     else :
-        for fiber in fibers :                                                                                       
+        ax=np.array([])
+        ay=np.array([])
+        aey=np.array([])
+        for fiber in fibers :
             ok=np.where(spectra2[fiber,yy]>args.minflux)[0]
             if ok.size==0 : continue
             ok=yy[ok]
@@ -143,15 +149,121 @@ for a,amp in enumerate(list(args.amps)) :
             x,y,ey=profile(x,y,bins)
             plt.errorbar(x,y,ey,fmt="o",color=colors[a],label=label)
             plt.errorbar(x,y,ey,fmt="-")
+            ax = np.append(ax,x)
+            ay = np.append(ay,y)
+            aey = np.append(aey,ey)
             
             label=None
+        x=ax
+        y=ay
+        ey=aey
 
-if args.ratio != 0. :
-    x=np.linspace(args.minflux,args.maxflux,100)
-    y = args.ratio*x # true
-    y *= (1.-args.nonlin*y)
-    plt.plot(x,y/x,"-",label="model for 1/2=%f and nonlin=%g"%(args.ratio,args.nonlin))
 
+if False :
+    # method 1
+    # fitting non linearity ?
+    # x = xt + a*xt**2 + b*xt**3
+    # y = s*xt + a*(s*xt)**2 + b*(s*xt)**3
+    # try iterative fit
+    # starting with xt=x
+
+    y *= x # now y is the flux in spectra2
+    ey *= x # now y is the flux in spectra2
+
+    ii=np.argsort(x)
+    x=x[ii]
+    y=y[ii]
+    ey=ey[ii]
+    #ey=x*1.e-5
+    #ey=x**0.25*1.e-5
+
+    xt=x.copy()
+    deg=3
+    previous_p=1e-20*np.ones(deg-1)
+
+
+    for loop in range(50) :
+        coef,coeferr=mypolfit(xt,y,w=1/ey**2,deg=deg,force_zero_offset=True)
+        c=coef[::-1]
+        print("loop #%d coef=%s"%(loop,c))
+        s=c[1]
+        p=c[2:]
+        for i in range(p.size) :
+            p[i] /= s**(i+2)
+        print("loop #%d s,p = %g, %s"%(loop,s,p))
+        sxt=s*xt
+        ym = sxt
+        xm = xt.copy()
+        xtn=xt+0.
+        for i in range(p.size) :
+            ym += p[i]*sxt**(i+2)
+            xm += p[i]*xt**(i+2)
+            xtn -= (p[i]-previous_p[i])*xt**(i+2)
+        xt=xtn
+        plt.plot(x,ym/x,"-")
+        #plt.plot(xm,ym/xm,"--")
+        # update xt ?
+        #xt=np.interp(x,xm,xt)
+
+        if np.abs(p[0]/previous_p[0]-1)<0.001 and loop>=2 :
+            break
+        previous_p = p.copy()
+
+    plt.plot(x,ym/x,"-")
+    plt.plot(xm,ym/xm,"--")
+    print("non-linear fit : scale = %g , non-linear coef = %s"%(s,p))
+    if args.ratio != 0. :
+        x=np.linspace(args.minflux,args.maxflux,100)
+        y = args.ratio*x # true
+        y *= (1.-args.nonlin*y)
+        plt.plot(x,y/x,"-",label="model for 1/2=%f and nonlin=%g"%(args.ratio,args.nonlin))
+if True :
+    # method 2
+    ii=np.argsort(x)
+    x=x[ii]
+    y=y[ii]
+    ey=ey[ii]
+    deg=args.deg
+    coef,coeferr=mypolfit(x,y,w=1/ey**2,deg=deg)
+    pol=np.poly1d(coef)
+    plt.plot(x,pol(x),"-")
+    # now need to interpret the coeff ...
+    c=coef[::-1].copy()
+    # f2/f1 = c[0] + c[1]*f1 + c[2]*f1**2 ...
+    # f2    = c[0]*f1 + c[1]*f1**2 + c[2]*f1**3
+    # f2t   = c[0]*f1
+    # f2    = f2t     + c[1]/c[0]**2*f2t**2 + c[2]/c[0]**3 * f2t**3
+    ratio=c[0]
+    nonlin=np.ones(deg+1)
+    for i in range(1,deg+1) :
+        nonlin[i]=c[i]/ratio**(i+1)
+    print("data fit nonlin=",nonlin)
+    model_nonlin = nonlin.copy()
+    model_ratio  = ratio.copy()
+    
+    xt=np.linspace(np.min(x),np.max(x),100)
+    for loop in range(20) :
+        yt=model_ratio*xt
+        xm=xt.copy()
+        ym=yt.copy()
+        for i in range(1,deg+1) :
+            xm += model_nonlin[i]*xt**(i+1)
+            ym += model_nonlin[i]*yt**(i+1)
+        ym=ym/xm
+        plt.plot(xm,ym,"--",color="gray",alpha=0.5)
+        coef2,coeferr2=mypolfit(xm,ym,w=np.ones(ym.size),deg=deg)
+        c2=coef2[::-1].copy()    
+        ratio2=c2[0]
+        nonlin2=np.ones(deg+1)
+        for i in range(1,deg+1) :
+            nonlin2[i]=c2[i]/ratio2**(i+1)
+        #print("sim. fit nonlin=",nonlin2[1:])
+        print("model nonlin from %f to %f = %s"%(np.mean(xm),np.mean(ym*xm),model_nonlin[1:]))        
+        model_nonlin += (nonlin-nonlin2)
+    plt.plot(xm,ym,"--",color="r")
+    
+    
+    
 plt.grid()
 plt.xlabel("mean flux per pixel in sample 2")
 plt.ylabel("ratio of flux per pixel sample 1 / sample 2")
