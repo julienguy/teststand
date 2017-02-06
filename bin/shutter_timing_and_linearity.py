@@ -65,13 +65,61 @@ def readfile(filename) :
         res[k]=x[i].copy()
     return res
 
+def non_linearity_break(args) :
+    if args.camera == "b1" and args.amp == "A" :
+        return 1.5e4
+    elif args.camera == "b1" and args.amp == "B" :
+        return 1.e4
+    elif args.camera == "r1" and args.amp == "B" :
+        return 2.4e4
+    else :
+       print("Non linearity correction for %s %s not implemented !!"%(args.camera,args.amp))
+       return 1.e4
+   
+def non_linearity_correction_b1_A(meas_flux) :
+    nl1=+3.7e-06
+    nl2=+2.e-06
+    thres=1.5e4
+    non_linear_correction = (1. + (meas_flux<thres)*nl1*meas_flux + (meas_flux>thres)*(nl2*(meas_flux-thres)+nl1*thres))
+    return non_linear_correction
 
-if len(sys.argv)<2 :
-    print(sys.argv[0],"sumflux.list")
-    sys.exit(0)
-filename=sys.argv[1]
+def non_linearity_correction_b1_B(meas_flux) :
+    nl1=-3.9e-06
+    nl2=+1.8e-06
+    thres=1e4
+    non_linear_correction = (1. + (meas_flux<thres)*nl1*meas_flux + (meas_flux>thres)*(nl2*(meas_flux-thres)+nl1*thres))
+    return non_linear_correction
 
-x=readfile(filename)
+def non_linearity_correction_r1_B(meas_flux) :
+    nl1=-0.e-06
+    nl2=+0e-06
+    thres=2.4e4
+    non_linear_correction = (1. + (meas_flux<thres)*nl1*meas_flux + (meas_flux>thres)*(nl2*(meas_flux-thres)+nl1*thres))
+    return non_linear_correction
+
+
+def non_linearity_correction(meas_flux,args) :
+    if args.camera == "b1" and args.amp == "A" :
+        return non_linearity_correction_b1_A(meas_flux)
+    elif args.camera == "b1" and args.amp == "B" :
+        return non_linearity_correction_b1_B(meas_flux)
+    elif args.camera == "r1" and args.amp == "B" :
+        return non_linearity_correction_r1_B(meas_flux)
+    print("Non linearity correction for %s %s not implemented !!"%(args.camera,args.amp))
+    return np.ones(meas_flux.shape)
+##############################################################################################
+
+
+parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+parser.add_argument('-i','--input', type = str, default = None, required = True, help = 'ASCII file from meanflux_for_shutter_timing_and_linearity.py')
+parser.add_argument('--camera', type = str, default = None, required = True, help = 'camera (b1, r1 or z1)')
+parser.add_argument('--amp', type = str, default = None, required = True, help = 'amplifier (A,B,C or D)')
+parser.add_argument('--fit-non-lin', action = 'store_true', help = 'try and fit non linear correction')
+
+
+args = parser.parse_args()
+
+x=readfile(args.input)
 x["nd"]=x["nd"].astype(int)
 x["fiber"]=x["fiber"].astype(int)
 
@@ -106,20 +154,14 @@ for k in x.keys() :
         xall[k][i]=x[k][i]+0
 
 
-def non_linearity_correction_b1_B(meas_flux) :
-    nl1=-3.9e-06
-    nl2=+1.8e-06
-    thres=1e4
-    non_linear_correction = (1. + (meas_flux<thres)*nl1*meas_flux + (meas_flux>thres)*(nl2*(meas_flux-thres)+nl1*thres))
-    return non_linear_correction
 
 if True :
     print("apply a non linear correction")
-    #x["flux"][x["fiber"]>=10] /= non_linearity_b1_B(x["flux"][x["fiber"]>=10])
-    x["flux"][x["fiber"]>=10] *= non_linearity_correction_b1_B(x["flux"][x["fiber"]>=10])
+    x["flux"] *= non_linearity_correction(x["flux"],args)
 
 scale=1.e-3 # only for plots
-threshold=1e4
+threshold=non_linearity_break(args)
+print("non linearity break (used for threshold)=",threshold)
 if True : # remove brightest data possibly non-linear    
     print("FLUX threshold = %g"%threshold)
     plt.plot(x["expreq"],x["flux"]*scale,"o",c="r")
@@ -157,7 +199,7 @@ weight = 1./(0.01*x["flux"])**2
 
 fibertrans=None
 old_deltat=0.
-for loop in range(50) :
+for loop in range(100) :
 
     
     if len(fibers)>1 : # do a fiber flat per ND !
@@ -217,7 +259,10 @@ for loop in range(50) :
             else :
                 truetime=x["expreq"][ok]-deltat
                 ndtrans_corr[nd]=np.sum(weight[ok]*x["flux"][ok]*truetime)/np.sum(weight[ok]*truetime**2)
-        ref=ndtrans_corr[1]
+        if 1 in ndtrans_corr :
+            ref=ndtrans_corr[1]
+        else :
+            ref=ndtrans_corr[2]/0.3
         for nd in nds :
             ndtrans_corr[nd] /= ref
                 
@@ -246,12 +291,13 @@ for loop in range(50) :
     # flux = a*t+b
     # flux=0 for t= -b/a
     deltat=-coef[1]/coef[0]
-    print("iter #%d delta exptime = %f"%(loop,deltat))
+    #print("iter #%d delta exptime = %f"%(loop,deltat))
     #print("iter #%d ndtrans_corr = %s"%(loop,str(ndtrans_corr)))
     if np.abs(deltat-old_deltat)<0.000001 :
         break
     old_deltat=deltat
 
+print("####### RESULTS #######")
 for nd in nds :
     line="ND#%d trans="%nd
     line+=" %5.4f"%ndtrans[nd]
@@ -260,6 +306,9 @@ for fiber in fibers :
     line="Fiber #%d trans="%fiber
     line+=" %5.4f"%fibertrans[fiber]
     print(line)
+print("delta exptime = %f"%(deltat))
+print("nloop = %d"%(loop))
+print("#######################")
 
 #ndtrans[3]*=(1-0.04)
 #for nd in nds :
@@ -327,7 +376,7 @@ for nd in nds :
 
 # fit the flux of the LED (for this, we apply the non-linearity correction)
 w=np.ones(flux.size)
-coef,err=mypolfit(modelflux[flux<threshold],flux[flux<threshold]*non_linearity_correction_b1_B(flux[flux<threshold]),w=w[flux<threshold],deg=1,force_zero_offset=True)
+coef,err=mypolfit(modelflux[flux<threshold],flux[flux<threshold]*non_linearity_correction(flux[flux<threshold],args),w=w[flux<threshold],deg=1,force_zero_offset=True)
 modelflux *= coef[-2] # apply slope which is defined by unknown illumination
 
 # sort
@@ -335,18 +384,20 @@ ii=np.argsort(modelflux)
 modelflux=modelflux[ii]
 flux=flux[ii]
 w=w[ii]
-ok1=np.where(flux<threshold)[0]
-coef1,err1=mypolfit(modelflux[ok1],flux[ok1],w=w[ok1],deg=2,force_zero_offset=True)
-pol1=np.poly1d(coef1)
-non_linear_coef1=coef1[0]
-print("non_linear_coef1=",non_linear_coef1)
-ok2=np.where(flux>=threshold)[0]
-coef2,err2=mypolfit(modelflux[ok2],flux[ok2],w=w[ok2],deg=2,force_zero_offset=False)
-pol2=np.poly1d(coef2)
-coef2[-1] += (pol1(threshold)-pol2(threshold)) # continuity
-pol2=np.poly1d(coef2)
-non_linear_coef2=coef2[0]
-print("non_linear_coef2=",non_linear_coef2)
+
+if args.fit_non_lin :
+    ok1=np.where(flux<threshold)[0]
+    coef1,err1=mypolfit(modelflux[ok1],flux[ok1],w=w[ok1],deg=2,force_zero_offset=True)
+    pol1=np.poly1d(coef1)
+    non_linear_coef1=coef1[0]
+    print("non_linear_coef1=",non_linear_coef1)
+    ok2=np.where(flux>=threshold)[0]
+    coef2,err2=mypolfit(modelflux[ok2],flux[ok2],w=w[ok2],deg=2,force_zero_offset=False)
+    pol2=np.poly1d(coef2)
+    coef2[-1] += (pol1(threshold)-pol2(threshold)) # continuity
+    pol2=np.poly1d(coef2)
+    non_linear_coef2=coef2[0]
+    print("non_linear_coef2=",non_linear_coef2)
 
 
 
@@ -354,8 +405,9 @@ plt.figure("CCD linearity")
 plt.subplot(3,2,1)
 plt.plot(modelflux*scale,flux*scale,"o")
 plt.plot(modelflux*scale,modelflux*scale,"-",color="k")
-plt.plot(modelflux[ok1]*scale,pol1(modelflux[ok1])*scale,"--",color="r")
-plt.plot(modelflux[ok2]*scale,pol2(modelflux[ok2])*scale,"--",color="r")
+if args.fit_non_lin :
+    plt.plot(modelflux[ok1]*scale,pol1(modelflux[ok1])*scale,"--",color="r")
+    plt.plot(modelflux[ok2]*scale,pol2(modelflux[ok2])*scale,"--",color="r")
 
 plt.ylabel(r"FLUX$\times 10^{%d}$"%np.log10(scale))
 plt.xlabel(r"LINEAR FLUX MODEL$\times 10^{%d}$"%np.log10(scale))
@@ -364,8 +416,9 @@ plt.xlabel(r"LINEAR FLUX MODEL$\times 10^{%d}$"%np.log10(scale))
 plt.grid()
 
 plt.subplot(3,2,2)
-plt.plot(modelflux[ok1]*scale,(pol1(modelflux[ok1])-modelflux[ok1])*scale,"--",color="r")
-plt.plot(modelflux[ok2]*scale,(pol2(modelflux[ok2])-modelflux[ok2])*scale,"--",color="r")
+if args.fit_non_lin :
+    plt.plot(modelflux[ok1]*scale,(pol1(modelflux[ok1])-modelflux[ok1])*scale,"--",color="r")
+    plt.plot(modelflux[ok2]*scale,(pol2(modelflux[ok2])-modelflux[ok2])*scale,"--",color="r")
 plt.plot(modelflux*scale,0*modelflux,"-",color="k")
 plt.plot(modelflux*scale,(flux-modelflux)*scale,"o")
 
@@ -386,8 +439,9 @@ plt.grid()
 
 
 plt.subplot(3,2,3)
-plt.plot(modelflux[ok1]*scale,(pol1(modelflux[ok1])-modelflux[ok1])*scale,"--",color="r")
-plt.plot(modelflux[ok2]*scale,(pol2(modelflux[ok2])-modelflux[ok2])*scale,"--",color="r")
+if args.fit_non_lin :
+    plt.plot(modelflux[ok1]*scale,(pol1(modelflux[ok1])-modelflux[ok1])*scale,"--",color="r")
+    plt.plot(modelflux[ok2]*scale,(pol2(modelflux[ok2])-modelflux[ok2])*scale,"--",color="r")
 plt.plot(modelflux*scale,0*modelflux,"-",color="k")
 for expreq in expreqs :
     ok=np.where(xall["expreq"][ii]==expreq)[0]
@@ -404,8 +458,9 @@ plt.grid()
 
 plt.subplot(3,2,4)
 #plt.plot(modelflux*scale,flux/modelflux-1,"o")
-plt.plot(modelflux[ok1]*scale,(pol1(modelflux[ok1])/modelflux[ok1]-1),"--",color="r")
-plt.plot(modelflux[ok2]*scale,(pol2(modelflux[ok2])/modelflux[ok2]-1),"--",color="r")
+if args.fit_non_lin :
+    plt.plot(modelflux[ok1]*scale,(pol1(modelflux[ok1])/modelflux[ok1]-1),"--",color="r")
+    plt.plot(modelflux[ok2]*scale,(pol2(modelflux[ok2])/modelflux[ok2]-1),"--",color="r")
 plt.plot(modelflux*scale,0*modelflux,"-",color="k")
 for nd in nds :
     ok=np.where(xall["nd"][ii]==nd)[0]
@@ -423,21 +478,21 @@ plt.grid()
 
 plt.subplot(3,2,5)
 
-
-coef1,err1=mypolfit(flux[ok1],modelflux[ok1],w=w[ok1],deg=2,force_zero_offset=True)
-pol1b=np.poly1d(coef1)
-non_linear_coef1=coef1[0]
-coef2,err2=mypolfit(flux[ok2],modelflux[ok2],w=w[ok2],deg=2,force_zero_offset=False)
-pol2b=np.poly1d(coef2)
-coef2[-1] += (pol1b(threshold)-pol2b(threshold)) # continuity
-pol2b=np.poly1d(coef2)
-non_linear_coef2=coef2[0]
-print("non_linear_coef1 (flux->model)=",non_linear_coef1)
-print("non_linear_coef2 (flux->model)=",non_linear_coef2)
-
-plt.plot(flux[ok1]*scale,pol1b(flux[ok1])/flux[ok1]-1,"--",color="r")
-plt.plot(flux[ok2]*scale,pol2b(flux[ok2])/flux[ok2]-1,"--",color="r")
-plt.plot(flux*scale,non_linearity_correction_b1_B(flux)-1,"-",color="g")
+if args.fit_non_lin :
+    coef1,err1=mypolfit(flux[ok1],modelflux[ok1],w=w[ok1],deg=2,force_zero_offset=True)
+    pol1b=np.poly1d(coef1)
+    non_linear_coef1=coef1[0]
+    coef2,err2=mypolfit(flux[ok2],modelflux[ok2],w=w[ok2],deg=2,force_zero_offset=False)
+    pol2b=np.poly1d(coef2)
+    coef2[-1] += (pol1b(threshold)-pol2b(threshold)) # continuity
+    pol2b=np.poly1d(coef2)
+    non_linear_coef2=coef2[0]
+    print("non_linear_coef1 (flux->model)=",non_linear_coef1)
+    print("non_linear_coef2 (flux->model)=",non_linear_coef2)
+if args.fit_non_lin :
+    plt.plot(flux[ok1]*scale,pol1b(flux[ok1])/flux[ok1]-1,"--",color="r")
+    plt.plot(flux[ok2]*scale,pol2b(flux[ok2])/flux[ok2]-1,"--",color="r")
+plt.plot(flux*scale,non_linearity_correction(flux,args)-1,"-",color="g")
 plt.plot(flux*scale,0*modelflux,"-",color="k")
 for nd in nds :
     ok=np.where(xall["nd"][ii]==nd)[0]
