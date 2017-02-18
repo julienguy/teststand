@@ -66,7 +66,8 @@ parser.add_argument('--nbins', type = int, default = 200, required = False, help
 parser.add_argument('--amps', type = str, default = "ABCD", required = False, help = 'amplifiers')
 parser.add_argument('--sum-fibers', action = "store_true", help = 'average fibers before display')
 parser.add_argument('--ratio', type = float, default=0., help = 'expected linear ratio (to display model)')
-parser.add_argument('--nonlin', type = float, default=0., help = 'expected non-linear term (to display model)')
+parser.add_argument('--secorder', type = float, default=0., help = 'expected non-linear term (to display model)')
+#parser.add_argument('--non-linear', type = float, default=[], nargs='*', help = 'expected higher-order non-linear terms (to display model)')
 
 args = parser.parse_args()
 wave=None
@@ -149,8 +150,13 @@ for a,amp in enumerate(list(args.amps)) :
 if args.ratio != 0. :
     x=np.linspace(args.minflux,args.maxflux,100)
     y = args.ratio*x # true
-    y *= (1.-args.nonlin*y)
-    plt.plot(x,y/x,"-",label="model for 1/2=%f and nonlin=%g"%(args.ratio,args.nonlin))
+    a=-1e-6
+    b=-1e-11
+    s=(1+a*y-b*y**2)
+    y *= s
+    s=(1+a*x-b*x**2)
+    x *= s
+    plt.plot(x,y/x,"-",label="model for 1/2=%f"%(args.ratio))
 
 plt.grid()
 plt.xlabel("mean flux per pixel in sample 2")
