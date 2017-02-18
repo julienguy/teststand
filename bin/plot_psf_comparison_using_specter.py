@@ -61,13 +61,21 @@ pylab.imshow(fpix2,origin=0,interpolation="nearest",extent=(-hw,hw,-hw,hw))
 pylab.text(-hw+0.3,-hw+0.8,"fiber #%d lambda=%dA"%(args.fiber2,args.wave),fontsize=10,color="white")
 pylab.text(-hw+0.3,-hw+0.1,"(x,y)=(%4.1f,%4.1f)"%(xy2[0],xy2[1]),fontsize=10,color="white")
 a=pylab.subplot(2,2,3,title="x prof.")
-pylab.plot(x[n1d/2,:],fpix1[n1d/2,:],c="b")
-pylab.plot(x[n1d/2,:],fpix2[n1d/2,:],c="r")
+pylab.plot(x[n1d//2,:],fpix1[n1d//2,:],c="b")
+pylab.plot(x[n1d//2,:],fpix2[n1d//2,:],c="r")
 pylab.xlabel("x ccd")
 a=pylab.subplot(2,2,4,title="y prof.")
-pylab.plot(y[:,n1d/2],fpix1[:,n1d/2],c="b")
-pylab.plot(y[:,n1d/2],fpix2[:,n1d/2],c="r")
+pylab.plot(y[:,n1d//2],fpix1[:,n1d//2],c="b")
+pylab.plot(y[:,n1d//2],fpix2[:,n1d//2],c="r")
 pylab.xlabel("y ccd")
+
+# do the ratio of psf2 integrals
+
+ratio = np.sum(fpix1**2)/np.sum(fpix2**2)
+print("single line photometric error=%f"%np.abs(ratio-1.))
+
+
+
 pylab.show()
 
 #pyfits.writeto(args.output,image,clobber=True)
