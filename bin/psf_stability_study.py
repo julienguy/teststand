@@ -63,6 +63,16 @@ for fiber in fibers :
         
         for psf in psfs :
             xx, yy, ccdpix = psf.xypix(fiber,wave)
+
+            #print("fiber,wave",fiber,wave)
+            #print("xx",xx)
+            #print("yy",yy)
+            
+            #plt.imshow(ccdpix)
+            #plt.show()
+
+
+            
             images.append(ccdpix)
             i1.append(xx.start)
             i0.append(yy.start)
@@ -79,6 +89,7 @@ for fiber in fibers :
         #log.info(images.shape)
         n=images.shape[0]
         mimage=np.mean(images,axis=0)
+        
         
         delta_ratio_emission_line = np.zeros(n)
         delta_ratio_continuum = np.zeros(n)
