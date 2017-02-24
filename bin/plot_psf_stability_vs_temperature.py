@@ -23,6 +23,9 @@ temps={}
 for k in ["BLUTEMP","REDTEMP","NIRTEMP","PLCTEMP1","PLCTEMP2"] :
     temps[k]=x[i] ; i+=1
 
+# hack
+temps["EXPNUM"]=e1
+
 delta_ratio_emission_line=x[i] ; i+=1
 delta_ratio_continuum=x[i] ; i+=1
 delta_x=x[i] ; i+=1
@@ -43,9 +46,10 @@ nx=2
 a=1
 plt.subplot(ny,nx,a) ; a+=1
 for d in uday :
-    plt.plot(temp[day==d],delta_x[day==d],"o")
+    plt.plot(temp[day==d],delta_x[day==d],"o",label="%d"%d)
 plt.grid()
 plt.ylabel("delta x (pixels)")
+plt.legend(loc="upper right",fontsize="small")
 plt.subplot(ny,nx,a) ; a+=1
 for d in uday :
     plt.plot(temp[day==d],delta_y[day==d],"o")

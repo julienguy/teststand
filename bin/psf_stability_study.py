@@ -54,6 +54,8 @@ res_emission_line_rms=[]
 res_continuum_rms=[]
 res_fiber=[]
 res_wave=[]
+res_x_rms=[]
+res_y_rms=[]
 
 for fiber in fibers :
     for wave in waves :
@@ -89,17 +91,23 @@ for fiber in fibers :
         #log.info(images.shape)
         n=images.shape[0]
         mimage=np.mean(images,axis=0)
-        
+        x=np.tile(np.arange(mimage.shape[0]),(mimage.shape[1],1))    # check with visual inspection of ccd image 
+        y=np.tile(np.arange(mimage.shape[1]),(mimage.shape[0],1)).T  # y is wavelength axis
         
         delta_ratio_emission_line = np.zeros(n)
         delta_ratio_continuum = np.zeros(n)
+        xc = np.zeros(n)
+        yc = np.zeros(n)
         for j in range(n) :
             delta_ratio_emission_line[j] = np.sum(images[j]*mimage)/np.sum(images[j]**2)-1
             pmimage=np.sum(mimage,axis=0) # projection to get 1D PSF along cross-dispersion for continuum fit normalization
             pimage=np.sum(images[j],axis=0) 
             delta_ratio_continuum[j] = np.sum(pimage*pmimage)/np.sum(pimage**2)-1
-            
+            xc[j] = np.sum(x*images[j])/np.sum(images[j])
+            yc[j] = np.sum(y*images[j])/np.sum(images[j])
 
+            
+            
             if False and np.abs(delta_ratio_emission_line[j])>0.008 :
                 plt.figure()
                 a=plt.subplot(1,2,1)
@@ -116,6 +124,8 @@ for fiber in fibers :
         res_x.append(mi1)
         res_emission_line_rms.append(rms2d)
         res_continuum_rms.append(rms1d)
+        res_x_rms.append(np.std(xc))
+        res_y_rms.append(np.std(yc))
         res_fiber.append(fiber)
         res_wave.append(wave)
         
@@ -125,7 +135,8 @@ res_emission_line_rms=np.array(res_emission_line_rms)
 res_continuum_rms=np.array(res_continuum_rms)
 res_fiber=np.array(res_fiber)
 res_wave=np.array(res_wave)
-
+res_x_rms=np.array(res_x_rms)
+res_y_rms=np.array(res_y_rms)
 
 if args.output :
     file=open(args.output,"w")
@@ -137,18 +148,30 @@ if args.output :
 
 if args.plot :
     plt.figure()
-    plt.subplot(1,2,1)
+    plt.subplot(2,2,1)
     for fiber in fibers :
-        plt.plot(res_wave[res_fiber==fiber],res_emission_line_rms[res_fiber==fiber],"-o")
+        plt.plot(res_wave[res_fiber==fiber],res_emission_line_rms[res_fiber==fiber],"-")
     plt.xlabel("Wavelength")
     plt.ylabel("flux error for emission lines")
 
-    plt.subplot(1,2,2)
+    plt.subplot(2,2,2)
     for fiber in fibers :
-        plt.plot(res_wave[res_fiber==fiber],res_continuum_rms[res_fiber==fiber],"-o")
+        plt.plot(res_wave[res_fiber==fiber],res_continuum_rms[res_fiber==fiber],"-")
     plt.xlabel("Wavelength")
     plt.ylabel("flux error for continuum")
-    
+
+    plt.subplot(2,2,3)
+    for fiber in fibers :
+        plt.plot(res_wave[res_fiber==fiber],res_x_rms[res_fiber==fiber],"-")
+    plt.xlabel("Wavelength")
+    plt.ylabel("x error (rms, Pixels)")
+
+    plt.subplot(2,2,4)
+    for fiber in fibers :
+        plt.plot(res_wave[res_fiber==fiber],res_y_rms[res_fiber==fiber],"-")
+    plt.xlabel("Wavelength")
+    plt.ylabel("y error (rms, Pixels)")
+
     plt.show()
 
 

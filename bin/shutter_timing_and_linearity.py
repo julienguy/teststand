@@ -72,6 +72,10 @@ def non_linearity_break(args) :
         return 1.e4
     elif args.camera == "r1" and args.amp == "B" :
         return 2.4e4
+    elif args.camera == "z1" and args.amp == "B" :
+        return 8.e3
+    elif args.camera == "z1" and args.amp == "D" :
+        return 10.e3
     else :
        print("Non linearity correction for %s %s not implemented !!"%(args.camera,args.amp))
        return 1.e4
@@ -97,6 +101,20 @@ def non_linearity_correction_r1_B(meas_flux) :
     non_linear_correction = (1. + (meas_flux<thres)*nl1*meas_flux + (meas_flux>thres)*(nl2*(meas_flux-thres)+nl1*thres))
     return non_linear_correction
 
+def non_linearity_correction_z1_B(meas_flux) :
+    nl1=-6.85e-06
+    nl2=0.
+    thres=7.e3
+    non_linear_correction = (1. + (meas_flux<thres)*nl1*meas_flux + (meas_flux>thres)*(nl2*(meas_flux-thres)+nl1*thres))
+    return non_linear_correction
+
+def non_linearity_correction_z1_D(meas_flux) :
+    nl1=-3.5e-06
+    nl2=+0e-06
+    thres=10.e3
+    non_linear_correction = (1. + (meas_flux<thres)*nl1*meas_flux + (meas_flux>thres)*(nl2*(meas_flux-thres)+nl1*thres))
+    return non_linear_correction
+
 
 def non_linearity_correction(meas_flux,args) :
     if args.camera == "b1" and args.amp == "A" :
@@ -105,6 +123,10 @@ def non_linearity_correction(meas_flux,args) :
         return non_linearity_correction_b1_B(meas_flux)
     elif args.camera == "r1" and args.amp == "B" :
         return non_linearity_correction_r1_B(meas_flux)
+    elif args.camera == "z1" and args.amp == "B" :
+        return non_linearity_correction_z1_B(meas_flux)
+    elif args.camera == "z1" and args.amp == "D" :
+        return non_linearity_correction_z1_D(meas_flux)
     print("Non linearity correction for %s %s not implemented !!"%(args.camera,args.amp))
     return np.ones(meas_flux.shape)
 ##############################################################################################
@@ -314,18 +336,20 @@ print("#######################")
 #for nd in nds :
 #    print("HACKED ND#%d trans= %f"%(nd,ndtrans[nd]))
 
-plt.figure("exposure time")
+plt.figure("exposure-time-%s-%s"%(args.camera,args.amp))
 plt.subplot(3,1,1)
-plt.plot(expreq,flux*scale,"o")
+for nd in nds :
+    ok=np.where(x["nd"]==nd)[0]
+    plt.plot(x["expreq"][ok],x["flux"][ok]*scale,"o",label="ND #%d"%nd)
 #plt.xlabel("EXPREQ")
 plt.ylabel(r"FLUX $\times 10^{%d}$"%np.log10(scale))
-
+plt.legend(loc="upper left")
 
 
 pol=np.poly1d(coef)
 tt=np.linspace(deltat,np.max(expreq),3)
 plt.plot(tt,pol(tt)*scale,"-",color="k")
-xlim=[deltat-0.5,np.max(expreq)+0.5]
+xlim=[deltat-0.5,np.max(expreq)*1.1]
 plt.xlim(xlim)
 plt.grid()
 
@@ -334,8 +358,7 @@ plt.subplot(3,1,2)
 plt.plot(tt,0*tt,"-",color="k")
 for nd in nds :
     ok=np.where(x["nd"]==nd)[0]
-    offset=0.05*(int(nd)-3.)
-    plt.plot(x["expreq"][ok]+offset,(x["flux"][ok]-pol(x["expreq"][ok]))*scale,"o") 
+    plt.plot(x["expreq"][ok],(x["flux"][ok]-pol(x["expreq"][ok]))*scale,"o",label="ND #%d"%nd) 
 plt.xlim(xlim)
 #plt.xlabel("EXPREQ")
 plt.ylabel(r"(FLUX-FIT) $\times 10^{%d}$"%np.log10(scale))
@@ -349,7 +372,7 @@ for nd in nds :
     ok=np.where(x["nd"]==nd)[0]
     offset=0.05*(int(nd)-3.)
     plt.plot(x["expreq"][ok]+offset,x["flux"][ok]/pol(x["expreq"][ok])-1,"o",label="ND #%d"%nd) 
-plt.legend(loc="upper right",fontsize="small")
+
 plt.xlim(xlim)
 plt.xlabel("EXPREQ (sec)")
 plt.ylabel("FLUX/FIT-1")
@@ -400,27 +423,31 @@ if args.fit_non_lin :
     print("non_linear_coef2=",non_linear_coef2)
 
 
-
-plt.figure("CCD linearity")
-plt.subplot(3,2,1)
-plt.plot(modelflux*scale,flux*scale,"o")
+npy=4
+npx=1
+plt.figure("linearity-%s-%s"%(args.camera,args.amp))
+plt.subplot(npy,npx,1)
+#plt.plot(modelflux*scale,flux*scale,"o")
 plt.plot(modelflux*scale,modelflux*scale,"-",color="k")
 if args.fit_non_lin :
     plt.plot(modelflux[ok1]*scale,pol1(modelflux[ok1])*scale,"--",color="r")
     plt.plot(modelflux[ok2]*scale,pol2(modelflux[ok2])*scale,"--",color="r")
-
+if True :
+    for nd in nds :
+        ok=np.where(xall["nd"][ii]==nd)[0]
+        plt.plot(modelflux[ok]*scale,flux[ok]*scale,"o",label="ND #%d"%nd)
+        
 plt.ylabel(r"FLUX$\times 10^{%d}$"%np.log10(scale))
 plt.xlabel(r"LINEAR FLUX MODEL$\times 10^{%d}$"%np.log10(scale))
-
-
+plt.legend(loc="upper left")
 plt.grid()
 
-plt.subplot(3,2,2)
+plt.subplot(npy,npx,2)
 if args.fit_non_lin :
     plt.plot(modelflux[ok1]*scale,(pol1(modelflux[ok1])-modelflux[ok1])*scale,"--",color="r")
     plt.plot(modelflux[ok2]*scale,(pol2(modelflux[ok2])-modelflux[ok2])*scale,"--",color="r")
 plt.plot(modelflux*scale,0*modelflux,"-",color="k")
-plt.plot(modelflux*scale,(flux-modelflux)*scale,"o")
+#plt.plot(modelflux*scale,(flux-modelflux)*scale,"o")
 
 if True :
     for nd in nds :
@@ -434,29 +461,9 @@ if True :
 
 plt.xlabel(r"LINEAR FLUX MODEL$\times 10^{%d}$"%np.log10(scale))   
 plt.ylabel(r"(FLUX-MODEL) $\times 10^{%d}$"%np.log10(scale))
-plt.legend(loc="upper right")
 plt.grid()
 
-
-plt.subplot(3,2,3)
-if args.fit_non_lin :
-    plt.plot(modelflux[ok1]*scale,(pol1(modelflux[ok1])-modelflux[ok1])*scale,"--",color="r")
-    plt.plot(modelflux[ok2]*scale,(pol2(modelflux[ok2])-modelflux[ok2])*scale,"--",color="r")
-plt.plot(modelflux*scale,0*modelflux,"-",color="k")
-for expreq in expreqs :
-    ok=np.where(xall["expreq"][ii]==expreq)[0]
-    #ok=ok[ii]
-    plt.plot(modelflux[ok]*scale,(flux[ok]-modelflux[ok])*scale,"o",label="EXPREQ %2.1f"%expreq)
-    
-plt.xlabel(r"LINEAR FLUX MODEL$\times 10^{%d}$"%np.log10(scale))
-plt.ylabel(r"(FLUX-MODEL) $\times 10^{%d}$"%np.log10(scale))
-plt.legend(loc="upper right")
-plt.grid()
-
-
-
-
-plt.subplot(3,2,4)
+plt.subplot(npy,npx,3)
 #plt.plot(modelflux*scale,flux/modelflux-1,"o")
 if args.fit_non_lin :
     plt.plot(modelflux[ok1]*scale,(pol1(modelflux[ok1])/modelflux[ok1]-1),"--",color="r")
@@ -466,17 +473,13 @@ for nd in nds :
     ok=np.where(xall["nd"][ii]==nd)[0]
     #ok=ok[ii]
     plt.plot(modelflux[ok]*scale,flux[ok]/modelflux[ok]-1,"o",label="ND #%d"%nd)
-plt.legend(loc="upper right",fontsize="small")
-
-
-#plt.plot(modelflux,pol(modelflux)/modelflux-1,"-")
 plt.ylabel("FLUX/MODEL -1")
 plt.xlabel(r"LINEAR FLUX MODEL$\times 10^{%d}$"%np.log10(scale))
 plt.grid()
 
 
 
-plt.subplot(3,2,5)
+plt.subplot(npy,npx,4)
 
 if args.fit_non_lin :
     coef1,err1=mypolfit(flux[ok1],modelflux[ok1],w=w[ok1],deg=2,force_zero_offset=True)
@@ -498,7 +501,6 @@ for nd in nds :
     ok=np.where(xall["nd"][ii]==nd)[0]
     #ok=ok[ii]
     plt.plot(modelflux[ok]*scale,modelflux[ok]/flux[ok]-1,"o",label="ND #%d"%nd)
-plt.legend(loc="upper right",fontsize="small")
 
 plt.ylabel("MODEL/FLUX -1")
 plt.xlabel(r"MEAS. FLUX$\times 10^{%d}$"%np.log10(scale))

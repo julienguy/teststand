@@ -16,7 +16,7 @@ def readpsf(filename) :
         psftype=pyfits.open(filename)[0].header["PSFTYPE"]
     except KeyError :
         psftype=""
-    print("PSF Type=",psftype)
+    #log.INFO("PSF Type=%s"%psftype)
     if psftype=="GAUSS-HERMITE" :
         return specter.psf.GaussHermitePSF(filename)
     elif psftype=="SPOTGRID" :
@@ -31,11 +31,15 @@ parser.add_argument('--temp', type = str, default = None, required = True,
 parser.add_argument('-o','--output', type = str, default = None, required = False, help = 'path to output ascii file')
 parser.add_argument('--plot', action='store_true',help="plot result")
 parser.add_argument('--wave', type = float, required=True, help= "wavelength")
-parser.add_argument('--fiber', type = int, required=True, help= "fiber")
+parser.add_argument('--fibers', type = str, required=True, help= "defines from_to which fiber to work on. (ex: --fibers=50:60,4 means that only fibers 4, and fibers from 50 to 60 (excluded) will be plotted)")
 
 
 args        = parser.parse_args()
 log = get_logger()
+
+fibers=parse_fibers(args.fibers)
+if fibers is None :
+        fibers = np.arange(psfs[0].nspec)
 
 x=np.loadtxt(args.temp).T
 file=open(args.temp)
@@ -52,6 +56,7 @@ tkeys=["BLUTEMP","REDTEMP","NIRTEMP","PLCTEMP1","PLCTEMP2"]
 psfs=[]
 exp1=[]
 exp2=[]
+
 temps={}
 for k in tkeys :
   temps[k]=[]
@@ -62,13 +67,23 @@ for filename in args.psf :
     x=os.path.basename(filename).replace(".fits","").split("-")
     e1=int(x[3])
     e2=int(x[4])
-    print(e1,e2)
-    ok=np.where((vals["EXPNUM"]>=e1)&(vals["EXPNUM"]<=e2))[0]
+    log.info("%d-%d"%(e1,e2))
+    ok=np.where((vals["EXPNUM"]>=e1)&(vals["EXPNUM"]<=e2)&(vals["EXPREQ"]==6))[0]
+    if ok.size == 0 :
+        print("ERROR : didn't find info in temperature file for %d-%d"%(e1,e2))
+        sys.exit(0)
     for k in tkeys :
         temps[k].append(np.mean(vals[k][ok]))
     exp1.append(e1)
     exp2.append(e2)
+    
     day.append(np.mean(vals["DAY"][ok]))
+    exptime = np.mean(vals["EXPREQ"][ok])
+    if exptime != 6. :
+        print("ERROR, not the expected exptime :",exptime)
+        print(vals["EXPREQ"][ok])
+        print(vals["EXPNUM"][ok])        
+        sys.exit(0)
 
 day=np.array(day)
 for k in temps.keys() :
@@ -76,68 +91,104 @@ for k in temps.keys() :
 
 print(np.unique(day))
 
-images = []
-i0 = []
-i1 = []
-
-
-for psf in psfs :
-    xx, yy, ccdpix = psf.xypix(args.fiber,args.wave)
-    images.append(ccdpix)
-    i1.append(xx.start)
-    i0.append(yy.start)
-
-mi0 = int(np.min(i0))
-mi1 = int(np.min(i1))
-n=len(images)
-# add a margin and apply offset if necessary
-nimages=np.zeros((n,images[0].shape[0]+3,images[0].shape[1]+3))
-for j in range(n) :
-    nimages[j,i0[j]-mi0:i0[j]-mi0+images[j].shape[0],i1[j]-mi1:i1[j]-mi1+images[j].shape[1]] = images[j]        
-images=nimages
-n=images.shape[0]
-mimage=np.mean(images,axis=0)
-delta_ratio_emission_line = np.zeros(n)
-delta_ratio_continuum = np.zeros(n)
-delta_x = np.zeros(n)
-delta_y = np.zeros(n)
-sigma_x = np.zeros(n)
-sigma_y = np.zeros(n)
-
-y=np.tile(np.arange(mimage.shape[0]),(mimage.shape[1],1))    # which is which ???
-x=np.tile(np.arange(mimage.shape[1]),(mimage.shape[0],1)).T
-if 0 :
-    plt.figure()
-    plt.subplot(2,1,1)
-    plt.imshow(x,origin=0)
-    plt.subplot(2,1,2)
-    plt.imshow(y)
-    plt.show()
-
-
-
-mx=np.sum(x*mimage)/np.sum(mimage)
-my=np.sum(y*mimage)/np.sum(mimage)
-#msx=np.sqrt(np.sum(x**2*mimage)/np.sum(mimage)-mx**2)
-#msy=np.sqrt(np.sum(y**2*mimage)/np.sum(mimage)-my**2)
-
-
-for j in range(n) :
-    delta_ratio_emission_line[j] = np.sum(images[j]*mimage)/np.sum(images[j]**2)-1
-    pmimage=np.sum(mimage,axis=0) # projection to get 1D PSF along cross-dispersion for continuum fit normalization
-    pimage=np.sum(images[j],axis=0) 
-    delta_ratio_continuum[j] = np.sum(pimage*pmimage)/np.sum(pimage**2)-1
-    xj = np.sum(x*images[j])/np.sum(images[j])
-    yj = np.sum(y*images[j])/np.sum(images[j])
-    delta_x[j] = xj - mx
-    delta_y[j] = yj - my
-    sigma_x[j] = np.sqrt(np.sum(x**2*images[j])/np.sum(images[j]) - xj**2)
-    sigma_y[j] = np.sqrt(np.sum(y**2*images[j])/np.sum(images[j]) - yj**2)
+delta_ratio_emission_line_fibers = []
+delta_ratio_continuum_fibers = []
+delta_x_fibers = []
+delta_y_fibers = []
+sigma_x_fibers = []
+sigma_y_fibers = []
     
+for fiber in fibers :
+    images = []
+    i0 = []
+    i1 = []
 
+    for psf in psfs :
+        xx, yy, ccdpix = psf.xypix(fiber,args.wave)
+        images.append(ccdpix)
+        i1.append(xx.start)
+        i0.append(yy.start)
+
+    mi0 = int(np.min(i0))
+    mi1 = int(np.min(i1))
+    n=len(images)
+    # add a margin and apply offset if necessary
+    nimages=np.zeros((n,images[0].shape[0]+3,images[0].shape[1]+3))
+    for j in range(n) :
+        nimages[j,i0[j]-mi0:i0[j]-mi0+images[j].shape[0],i1[j]-mi1:i1[j]-mi1+images[j].shape[1]] = images[j]        
+    images=nimages
+    n=images.shape[0]
+    mimage=np.mean(images,axis=0)
+    delta_ratio_emission_line = np.zeros(n)
+    delta_ratio_continuum = np.zeros(n)
+    delta_x = np.zeros(n)
+    delta_y = np.zeros(n)
+    sigma_x = np.zeros(n)
+    sigma_y = np.zeros(n)
+
+    x=np.tile(np.arange(mimage.shape[0]),(mimage.shape[1],1))    # check with visual inspection of ccd image 
+    y=np.tile(np.arange(mimage.shape[1]),(mimage.shape[0],1)).T  # y is wavelength axis
+    if 0 :
+        plt.figure()
+        plt.subplot(2,1,1)
+        plt.imshow(x,origin=0)
+        plt.subplot(2,1,2)
+        plt.imshow(y)
+        plt.show()
+
+
+
+    mx=np.sum(x*mimage)/np.sum(mimage)
+    my=np.sum(y*mimage)/np.sum(mimage)
+    #msx=np.sqrt(np.sum(x**2*mimage)/np.sum(mimage)-mx**2)
+    #msy=np.sqrt(np.sum(y**2*mimage)/np.sum(mimage)-my**2)
+
+
+    for j in range(n) :
+        delta_ratio_emission_line[j] = np.sum(images[j]*mimage)/np.sum(images[j]**2)-1
+        pmimage=np.sum(mimage,axis=0) # projection to get 1D PSF along cross-dispersion for continuum fit normalization
+        pimage=np.sum(images[j],axis=0) 
+        delta_ratio_continuum[j] = np.sum(pimage*pmimage)/np.sum(pimage**2)-1
+        xj = np.sum(x*images[j])/np.sum(images[j])
+        yj = np.sum(y*images[j])/np.sum(images[j])
+        delta_x[j] = xj - mx
+        delta_y[j] = yj - my
+        dx=x-xj
+        dy=y-yj
+        if 0 : # unweighted
+            sigma_x[j] = np.sqrt(np.sum(dx**2*images[j])/np.sum(images[j]))
+            sigma_y[j] = np.sqrt(np.sum(dy**2*images[j])/np.sum(images[j]))
+        else :
+            # weighted, approximate sigma but more robust (psf is not a Gaussian anyway)
+            weight = np.exp(-(dx**2+dy**2)/2.)
+            sigma_x[j] = np.sqrt(2.)*np.sqrt(np.sum(dx**2*images[j]*weight)/np.sum(images[j]*weight))
+            sigma_y[j] = np.sqrt(2.)*np.sqrt(np.sum(dy**2*images[j]*weight)/np.sum(images[j]*weight))
+            
+    delta_ratio_emission_line_fibers.append(delta_ratio_emission_line)
+    delta_ratio_continuum_fibers.append(delta_ratio_continuum)
+    delta_x_fibers.append(delta_x)
+    delta_y_fibers.append(delta_y)
+    sigma_x_fibers.append(sigma_x)
+    sigma_y_fibers.append(sigma_y)
+
+if len(fibers)==1 :
+    delta_ratio_emission_line = delta_ratio_emission_line_fibers[0]
+    delta_ratio_continuum =delta_ratio_continuum_fibers[0]
+    delta_x = delta_x_fibers[0]
+    delta_y = delta_y_fibers[0]
+    sigma_x = sigma_x_fibers[0]
+    sigma_y = sigma_y_fibers[0]
+else :
+    delta_ratio_emission_line = np.mean(np.array(delta_ratio_emission_line_fibers),axis=0)
+    delta_ratio_continuum = np.mean(np.array(delta_ratio_continuum_fibers),axis=0)
+    delta_x = np.mean(np.array(delta_x_fibers),axis=0)
+    delta_y = np.mean(np.array(delta_y_fibers),axis=0)
+    sigma_x = np.mean(np.array(sigma_x_fibers),axis=0)
+    sigma_y = np.mean(np.array(sigma_y_fibers),axis=0)
+    
 if args.output is not None :
     file = open(args.output,"w")
-    file.write("# wave=%d fiber=%d\n"%(args.wave,args.fiber))
+    file.write("# wave=%d fibers=%s\n"%(args.wave,args.fibers))
     line="# day first_expnum last_expnum"
     for k in tkeys :
         line += " %s"%k
