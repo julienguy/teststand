@@ -54,7 +54,7 @@ ofile = open(args.output,"w")
 
 text = '''## J. Guy 2017/03/27
 ## Version 1
-## Changes : bug fix in SX,SY 
+## Changes in version 1 : bug fix in SX,SY computation (no change to EBIAS) 
 ## Codes in https://github.com/desihub/teststand
 ## psf_properties.py --refpsf psf-b1-ref.fits --psf psf-b1-0000????.fits --wave 4000
 ## psf_properties.py --refpsf psf-r1-ref.fits --psf psf-r1-0000????.fits --wave 6500

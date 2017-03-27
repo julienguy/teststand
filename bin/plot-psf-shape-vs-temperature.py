@@ -16,11 +16,11 @@ def read(filename) :
             break
     return vals
 
-d=read("psf_stability_vs_temperature_b1.txt")
+d=read("psf_stability_vs_temperature_version_1.txt")
 
-#for cam,tempkey in zip(["b1","r1","z1"],["BLUTEMP","REDTEMP","NIRTEMP"]) :
+for cam,tempkey in zip(["b1","r1","z1"],["BLUTEMP","REDTEMP","NIRTEMP"]) :
 #for cam,tempkey in zip(["b1","r1"],["BLUTEMP","REDTEMP"]) :
-for cam,tempkey in zip(["b1",],["BLUTEMP",]) :
+#for cam,tempkey in zip(["b1",],["BLUTEMP",]) :
 
     if cam == "b1" :
         camid=0
@@ -72,7 +72,7 @@ for cam,tempkey in zip(["b1",],["BLUTEMP",]) :
     humid=(d["BLUHUMID"]+d["REDHUMID"]+d["NIRHUMID"])[ok][ii]/3.
     msx=np.mean(sx)
     msy=np.mean(sy)
-    ebias2=1/( 2./np.sqrt((1+(sx/msx)**2)*(1+(sy/msy)**2)) )-1.
+    ebias2=np.sqrt((1+(sx/msx)**2)*(1+(sy/msy)**2))/2-1
     
     ######################################################
     plt.figure("psf-shape-%s"%cam,figsize=(19,12))
@@ -92,7 +92,8 @@ for cam,tempkey in zip(["b1",],["BLUTEMP",]) :
     plt.legend(loc="upper left")
     ######################################################
     a=plt.subplot(3,1,2)
-    #plt.plot(x,ebias2,"o",c="g",alpha=0.5,label=r"$(\sigma_X \sigma_Y)/< \sigma_X \sigma_Y > -1$")
+    # for comparison with analytic expression :
+    plt.plot(x,ebias2,"o",c="g",alpha=0.5,label=r"$\sqrt{(1+(\sigma_X/< \sigma_X>)^2)(1+(\sigma_Y/< \sigma_Y >)^2)} -1$")
     plt.plot(x,ebias,"o",c="b",label="bias on emission line flux")
     ymin=min(np.min(ebias),np.min(ebias2))
     ymax=max(np.max(ebias),np.max(ebias2))
