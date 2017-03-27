@@ -54,7 +54,12 @@ ofile = open(args.output,"w")
 
 text = '''## J. Guy 2017/03/27
 ## Version 1
-## Code : psf_stability_vs_temperature.py --psfprop propertie-psf-?1-* --temp modified-temperatures.txt -o psf_stability_vs_temperature_version_1.txt
+## Changes : bug fix in SX,SY 
+## Codes in https://github.com/desihub/teststand
+## psf_properties.py --refpsf psf-b1-ref.fits --psf psf-b1-0000????.fits --wave 4000
+## psf_properties.py --refpsf psf-r1-ref.fits --psf psf-r1-0000????.fits --wave 6500
+## psf_properties.py --refpsf psf-z1-ref.fits --psf psf-z1-0000????.fits --wave 8500
+## psf_stability_vs_temperature.py --psfprop propertie-psf-?1-* --temp modified-temperatures.txt -o psf_stability_vs_temperature_version_1.txt
 ##
 ## The file gives a list of PSF properties per exposure and several environmental parameters.
 ## The list of keys per line of this ASCII file is given at the end of this description.
@@ -67,8 +72,9 @@ text = '''## J. Guy 2017/03/27
 ##               Y is the wavelength dispersion direction (increasing Y with increasing wavelength)
 ## DX,DY are trace coordinate offsets along X,Y with respect to an arbitrary average for fiber FIBER and wavelength WAVE
 ## CX,CY are just for debugging (centroid of PSF in the PSF stamp used internally for computation of PSF shape)
-## SX,SY are sigma values along X,Y defined by : SX = sum((X-meanX)**2*PSF)/sum(PSF) , with meanX=sum(X*PSF)/sum(PSF)
-## EBIAS is the bias on emission line flux measurement EBIAS = sum(meanPSF*PSF)/sum(PSF**2)-1 (function of SX and SY for a gaussian, but not a gaussian)
+## SX,SY are sigma values along X,Y defined by : SX = sqrt(sum((X-meanX)**2*PSF)/sum(PSF)) , with meanX=sum(X*PSF)/sum(PSF)
+## EBIAS is the bias on emission line flux measurement EBIAS = sum(meanPSF*PSF)/sum(PSF**2)-1
+##       For a gaussian, EBIAS = sqrt((1+(SX/mean(SX))**2)*(1+(SY/mean(SY))**2))/2-1, but PSF is not a gaussian
 ## DAY is YYYYMMDD (convenient to find back raw data directory)
 ## TIME in second is elapsed time with arbitrary date
 ## HOUR is hour during the day at WINLIGHT (i.e. < 24)
