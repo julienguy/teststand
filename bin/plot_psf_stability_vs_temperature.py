@@ -22,12 +22,18 @@ e2=x[i] ; i+=1
 temps={}
 for k in ["BLUTEMP","REDTEMP","NIRTEMP","PLCTEMP1","PLCTEMP2"] :
     temps[k]=x[i] ; i+=1
+for k in ["MBLUTEMP","MREDTEMP","MNIRTEMP","MPLCTEMP1","MPLCTEMP2"] :
+    temps[k]=x[i] ; i+=1
+for k in ["DBLUTEMP","DREDTEMP","DNIRTEMP","DPLCTEMP1","DPLCTEMP2"] :
+    temps[k]=x[i] ; i+=1
 
 # hack
 temps["EXPNUM"]=e1
 
 delta_ratio_emission_line=x[i] ; i+=1
 delta_ratio_continuum=x[i] ; i+=1
+delta_ratio_emission_line_centered=x[i] ; i+=1
+delta_ratio_continuum_centered=x[i] ; i+=1
 delta_x=x[i] ; i+=1
 delta_y=x[i] ; i+=1
 sigma_x=x[i] ; i+=1
@@ -41,15 +47,15 @@ uday=np.unique(day)
 plt.figure(args.title,figsize=(14.,9.))
 #plt.text(args.title,7.,8.)
 
-ny=3
-nx=2
+ny=2
+nx=4
 a=1
 plt.subplot(ny,nx,a) ; a+=1
 for d in uday :
     plt.plot(temp[day==d],delta_x[day==d],"o",label="%d"%d)
 plt.grid()
 plt.ylabel("delta x (pixels)")
-plt.legend(loc="upper right",fontsize="small")
+#plt.legend(loc="upper right",fontsize="small")
 plt.subplot(ny,nx,a) ; a+=1
 for d in uday :
     plt.plot(temp[day==d],delta_y[day==d],"o")
@@ -77,4 +83,16 @@ for d in uday :
 plt.grid()
 plt.xlabel(label)
 plt.ylabel("continuum flux ratio")
+plt.subplot(ny,nx,a) ; a+=1
+for d in uday :
+    plt.plot(temp[day==d],delta_ratio_emission_line_centered[day==d],"o")
+plt.grid()
+plt.xlabel(label)
+plt.ylabel("emission line flux ratio (centered)")
+plt.subplot(ny,nx,a) ; a+=1
+for d in uday :
+    plt.plot(temp[day==d],delta_ratio_continuum_centered[day==d],"o")
+plt.grid()
+plt.xlabel(label)
+plt.ylabel("continuum flux ratio (centered)")
 plt.show()
