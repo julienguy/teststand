@@ -70,8 +70,8 @@ for fiber in fibers :
     refimage[fiber]=img
     refcx[fiber]= np.sum(xpix*img)/np.sum(img)
     refcy[fiber]= np.sum(ypix*img)/np.sum(img)
-    refsx[fiber]= np.sum((xpix-refcx[fiber])**2*img)/np.sum(img)
-    refsy[fiber]= np.sum((ypix-refcy[fiber])**2*img)/np.sum(img)
+    refsx[fiber]= np.sqrt(np.sum((xpix-refcx[fiber])**2*img)/np.sum(img))
+    refsy[fiber]= np.sqrt(np.sum((ypix-refcy[fiber])**2*img)/np.sum(img))
     reftx[fiber]= refpsf.x(fiber,args.wave)
     refty[fiber]= refpsf.y(fiber,args.wave)
     psfs=[]
@@ -110,8 +110,8 @@ for filename in args.psf :
         xx, yy, img = psf.xypix(fiber,args.wave)
         cx = np.sum(xpix*img)/np.sum(img)
         cy = np.sum(ypix*img)/np.sum(img)
-        sx = np.sqrt(np.sum((xpix-cx)**2*img)/np.sum(img)) # gros bug : sqrt
-        sy = np.sqrt(np.sum((ypix-cy)**2*img)/np.sum(img)) # gros bug : sqrt
+        sx = np.sqrt(np.sum((xpix-cx)**2*img)/np.sum(img))
+        sy = np.sqrt(np.sum((ypix-cy)**2*img)/np.sum(img))
         ebias = np.sum(refimage[fiber]*img)/np.sum(img**2)-1.
         
         line = "%d %d %d %d"%(expnum,camid,fiber,args.wave)
