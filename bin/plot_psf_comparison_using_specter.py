@@ -58,6 +58,21 @@ fpix1=psf1._value(x+xy1[0],y+xy1[1],args.fiber,args.wavelength)
 fpix2=psf2._value(x+xy2[0],y+xy2[1],fiber2,args.wavelength)
 fpix1 /= np.sum(fpix1)
 fpix2 /= np.sum(fpix2)
+
+mx1=np.sum(fpix1*x)
+my1=np.sum(fpix1*y)
+sigx1=np.sqrt(np.sum(fpix1*(x-mx1)**2))
+sigy1=np.sqrt(np.sum(fpix1*(y-my1)**2))
+mx2=np.sum(fpix2*x)
+my2=np.sum(fpix2*y)
+sigx2=np.sqrt(np.sum(fpix2*(x-mx2)**2))
+sigy2=np.sqrt(np.sum(fpix2*(y-my2)**2))
+
+print("psf1 sigx=%f sigy=%f"%(sigx1,sigy1))
+print("psf2 sigx=%f sigy=%f"%(sigx2,sigy2))
+print("sigx1/sigx2=%f sigy1/sigy2=%f"%(sigx1/sigx2,sigy1/sigy2))
+
+
 a=pylab.subplot(2,2,1,title=os.path.basename(args.psf1))
 pylab.imshow(fpix1,origin=0,interpolation="nearest",extent=(-hw,hw,-hw,hw))
 pylab.text(-hw+0.3,-hw+0.8,"fiber #%d lambda=%dA"%(args.fiber,args.wavelength),fontsize=10,color="white")

@@ -57,15 +57,19 @@ res_wave=[]
 res_x_rms=[]
 res_y_rms=[]
 
+use_trace = True
+
 for fiber in fibers :
     for wave in waves :
         images = []
         i0 = []
         i1 = []
-        
+        xc = []
+        yc = []
         for psf in psfs :
             xx, yy, ccdpix = psf.xypix(fiber,wave)
-
+            xc.append(psf.x(fiber,wave))
+            yc.append(psf.y(fiber,wave))
             #print("fiber,wave",fiber,wave)
             #print("xx",xx)
             #print("yy",yy)
@@ -96,16 +100,19 @@ for fiber in fibers :
         
         delta_ratio_emission_line = np.zeros(n)
         delta_ratio_continuum = np.zeros(n)
-        xc = np.zeros(n)
-        yc = np.zeros(n)
+        if not use_trace :
+            xc = np.zeros(n)
+            yc = np.zeros(n)
         for j in range(n) :
             delta_ratio_emission_line[j] = np.sum(images[j]*mimage)/np.sum(images[j]**2)-1
             pmimage=np.sum(mimage,axis=0) # projection to get 1D PSF along cross-dispersion for continuum fit normalization
             pimage=np.sum(images[j],axis=0) 
             delta_ratio_continuum[j] = np.sum(pimage*pmimage)/np.sum(pimage**2)-1
-            xc[j] = np.sum(x*images[j])/np.sum(images[j])
-            yc[j] = np.sum(y*images[j])/np.sum(images[j])
-
+            use_trace = False # checked has no impact
+            if not use_trace :
+                xc[j] = np.sum(x*images[j])/np.sum(images[j])
+                yc[j] = np.sum(y*images[j])/np.sum(images[j])
+            
             
             
             if False and np.abs(delta_ratio_emission_line[j])>0.008 :
