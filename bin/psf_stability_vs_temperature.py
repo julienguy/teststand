@@ -6,7 +6,7 @@ import sys
 import argparse
 import string
 import os.path
-from desispec.log import get_logger
+from desiutil.log import get_logger
 
 def read_temperatures(filename) :
     x=np.loadtxt(filename).T

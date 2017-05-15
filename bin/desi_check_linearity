@@ -6,7 +6,7 @@ import numpy as np
 import astropy.io.fits as pyfits
 import argparse
 import matplotlib.pyplot as plt
-from desispec.log import get_logger
+from desiutil.log import get_logger
 
 def profile(xx,yy,bins) :
     s1,junk=np.histogram(xx,bins=bins)

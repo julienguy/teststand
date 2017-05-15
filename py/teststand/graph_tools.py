@@ -2,7 +2,7 @@ import matplotlib.pyplot as plt
 import sys
 import numpy as np
 
-from desispec.log import get_logger
+from desiutil.log import get_logger
 
 def parse_fibers(fiber_string) :
     

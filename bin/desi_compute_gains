@@ -8,7 +8,7 @@ import argparse
 from desispec.preproc import  _parse_sec_keyword
 import matplotlib.pyplot as plt
 import logging
-from desispec.log import get_logger
+from desiutil.log import get_logger
 import desispec.maskbits as maskbits
 from numpy.polynomial.legendre import legval,legfit
 

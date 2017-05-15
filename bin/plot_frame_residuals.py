@@ -4,7 +4,7 @@
 import sys
 import argparse
 import astropy.io.fits as pyfits
-from desispec.log import get_logger
+from desiutil.log import get_logger
 import numpy as np
 import matplotlib.pyplot as plt
 parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)

@@ -9,7 +9,7 @@ import argparse
 import string
 import os.path
 from teststand.graph_tools import parse_fibers
-from desispec.log                  import get_logger
+from desiutil.log                  import get_logger
 
 def readpsf(filename) :
     try :

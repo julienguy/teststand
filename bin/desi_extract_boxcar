@@ -9,7 +9,7 @@ import matplotlib.pyplot as plt
 from teststand.boxcar_extraction   import boxcar
 from teststand.resample            import resample_to_same_wavelength_grid
 from teststand.graph_tools         import plot_graph,parse_fibers
-from desispec.log                  import get_logger
+from desiutil.log                  import get_logger
 
 parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
 parser.add_argument('-p','--psf', type = str, default = None, required = True,
