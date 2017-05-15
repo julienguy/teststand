@@ -2,12 +2,14 @@
 
 import numpy as np
 import astropy.io.fits as pyfits
-import pylab
+import matplotlib.pyplot as plt
 import specter.psf
 import sys
 import argparse
 import string
 import os.path
+from   scipy.signal import fftconvolve
+
 def readpsf(filename) :
     try :
         psftype=pyfits.open(filename)[0].header["PSFTYPE"]
@@ -32,6 +34,8 @@ parser.add_argument('--wavelength', type = float, default = 6000., required = Fa
                     help = 'wavelength')
 parser.add_argument('-o','--output', type = str, default = None, required = False,
                     help = 'path to output image (png) file')
+parser.add_argument('--no-pixel-convolution', action = "store_true",
+                    help = 'do not convolve PSFs with pixel size')
 
 
 args        = parser.parse_args()
@@ -49,15 +53,34 @@ print("for psf1, xy=",xy1)
 print("for psf2, xy=",xy2)
 
 
-pylab.figure()
+
 hw=5.
 n1d=51
-x=np.tile(np.linspace(-hw,hw,51),(n1d,1))
+x1d=np.linspace(-hw,hw,51)
+x=np.tile(x1d,(n1d,1))
 y=x.T
 fpix1=psf1._value(x+xy1[0],y+xy1[1],args.fiber,args.wavelength)
 fpix2=psf2._value(x+xy2[0],y+xy2[1],fiber2,args.wavelength)
 fpix1 /= np.sum(fpix1)
 fpix2 /= np.sum(fpix2)
+
+if not args.no_pixel_convolution :
+    
+    print("convolve PSF with pixel size")
+    kernel=(np.abs(x1d)<0.5).astype(float)
+    kernel/=np.sum(kernel)
+    for i in range(n1d) :
+        fpix1[i]=fftconvolve(fpix1[i],kernel, mode='same')
+    for j in range(n1d) :
+        fpix1[:,j]=fftconvolve(fpix1[:,j],kernel, mode='same')
+    for i in range(n1d) :
+        fpix2[i]=fftconvolve(fpix2[i],kernel, mode='same')
+    for j in range(n1d) :
+        fpix2[:,j]=fftconvolve(fpix2[:,j],kernel, mode='same')
+
+fpix1 /= np.sum(fpix1)
+fpix2 /= np.sum(fpix2)
+
 
 mx1=np.sum(fpix1*x)
 my1=np.sum(fpix1*y)
@@ -73,30 +96,41 @@ print("psf2 sigx=%f sigy=%f"%(sigx2,sigy2))
 print("sigx1/sigx2=%f sigy1/sigy2=%f"%(sigx1/sigx2,sigy1/sigy2))
 
 
-a=pylab.subplot(2,2,1,title=os.path.basename(args.psf1))
-pylab.imshow(fpix1,origin=0,interpolation="nearest",extent=(-hw,hw,-hw,hw))
-pylab.text(-hw+0.3,-hw+0.8,"fiber #%d lambda=%dA"%(args.fiber,args.wavelength),fontsize=10,color="white")
-pylab.text(-hw+0.3,-hw+0.1,"(x,y)=(%4.1f,%4.1f)"%(xy1[0],xy1[1]),fontsize=10,color="white")
-pylab.subplot(2,2,2,title=os.path.basename(args.psf2))
-pylab.imshow(fpix2,origin=0,interpolation="nearest",extent=(-hw,hw,-hw,hw))
-pylab.text(-hw+0.3,-hw+0.8,"fiber #%d lambda=%dA"%(fiber2,args.wavelength),fontsize=10,color="white")
-pylab.text(-hw+0.3,-hw+0.1,"(x,y)=(%4.1f,%4.1f)"%(xy2[0],xy2[1]),fontsize=10,color="white")
-a=pylab.subplot(2,2,3,title="x prof.")
-pylab.plot(x[n1d//2,:],fpix1[n1d//2,:],c="b")
-pylab.plot(x[n1d//2,:],fpix2[n1d//2,:],c="r")
-pylab.xlabel("x ccd")
-a=pylab.subplot(2,2,4,title="y prof.")
-pylab.plot(y[:,n1d//2],fpix1[:,n1d//2],c="b")
-pylab.plot(y[:,n1d//2],fpix2[:,n1d//2],c="r")
-pylab.xlabel("y ccd")
 
+
+
+
+
+plt.figure()
+plt.figtext(0.25, 0.96,os.path.basename(args.psf1), fontsize='medium', color='b', ha ='center')
+plt.figtext(0.75, 0.96,os.path.basename(args.psf2), fontsize='medium', color='r', ha ='center')
+
+a=plt.subplot(2,2,1)
+plt.imshow(fpix1,origin=0,interpolation="nearest",extent=(-hw,hw,-hw,hw))
+plt.text(-hw+0.3,-hw+0.8,"fiber #%d lambda=%dA"%(args.fiber,args.wavelength),fontsize=10,color="white")
+plt.text(-hw+0.3,-hw+0.1,"(x,y)=(%4.1f,%4.1f)"%(xy1[0],xy1[1]),fontsize=10,color="white")
+plt.subplot(2,2,2)
+plt.imshow(fpix2,origin=0,interpolation="nearest",extent=(-hw,hw,-hw,hw))
+plt.text(-hw+0.3,-hw+0.8,"fiber #%d lambda=%dA"%(fiber2,args.wavelength),fontsize=10,color="white")
+plt.text(-hw+0.3,-hw+0.1,"(x,y)=(%4.1f,%4.1f)"%(xy2[0],xy2[1]),fontsize=10,color="white")
+a=plt.subplot(2,2,3,title="x prof.")
+
+plt.plot(x[n1d//2,:],fpix1[n1d//2,:],c="b",lw=2)
+plt.plot(x[n1d//2,:],fpix2[n1d//2,:],"--",c="r",lw=2)
+plt.xlabel("x ccd")
+plt.gca().axes.get_yaxis().set_ticks([])
+a=plt.subplot(2,2,4,title="y prof.")
+plt.plot(y[:,n1d//2],fpix1[:,n1d//2],c="b",lw=2)
+plt.plot(y[:,n1d//2],fpix2[:,n1d//2],"--",c="r",lw=2)
+plt.xlabel("y ccd")
+plt.gca().axes.get_yaxis().set_ticks([])
 # do the ratio of psf2 integrals
 
-ratio = np.sum(fpix1**2)/np.sum(fpix2**2)
+ratio = np.sum(fpix1*fpix2)/np.sum(fpix2**2)
 print("single line photometric error=%f"%np.abs(ratio-1.))
 
 
 
-pylab.show()
+plt.show()
 
 #pyfits.writeto(args.output,image,clobber=True)
