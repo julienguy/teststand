@@ -1,0 +1,361 @@
+#!/usr/bin/env python
+
+import sys
+import argparse
+import astropy.io.fits as pyfits
+import matplotlib.pyplot as plt
+import numpy as np
+from desiutil.log import get_logger
+
+
+
+
+parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter,description="",epilog="")
+parser.add_argument('-i','--images', type = str, default = None, required = True, nargs = '*',
+                    help = 'path to input preprocessed image fits files')
+parser.add_argument('-c','--coords', type = str, default = None, required = True, 
+                    help = 'path to input coordinates fits image')
+parser.add_argument('-o','--outfile', type = str, default = None, required = True,
+                    help = 'output flatfield image filename')
+parser.add_argument('-n','--ncomp', type = int, default = 2, required = False, 
+                    help = 'number of components to fit')
+parser.add_argument('--margin', type = int, default = 10, required = False, 
+                    help = 'margin around CCD to discard from fit')
+parser.add_argument('-a','--amplifier-stitching', action = 'store_true',
+                    help = 'adjust relative amplifier gains assuming continuity')
+parser.add_argument('--debug', action = 'store_true',
+                    help = 'writes fits images of model transmission and spectrum of each component')
+
+log =  get_logger()
+args        = parser.parse_args()
+
+if len(args.images) == 1 :
+    image=pyfits.open(args.images[0])[0].data
+else :
+    log.info("Compute a median of the input images")
+    images=[]
+    for filename in args.images :
+        h=pyfits.open(filename)
+        images.append(h[0].data)
+    image=np.median(images,axis=0)
+
+image_shape=image.shape
+image=image.ravel()
+
+log.info("reading wave and fiber coordinate of pixels from %s"%args.coords)
+coords=pyfits.open(args.coords)
+wave_of_pixels=coords["WAVELENGTH"].data
+fiber_of_pixels=coords["FIBER"].data
+
+dfiberdpix = np.median(np.gradient(fiber_of_pixels[image_shape[0]//2]))
+dwavedpix = np.median(np.gradient(wave_of_pixels[:,image_shape[1]//2]))
+log.info("dfiber/dpix = %f fiber/pixel"%dfiberdpix)
+log.info("dwave/dpix  = %f A/pixel"%dwavedpix)
+
+fibermin=np.min(fiber_of_pixels)
+fibermax=np.max(fiber_of_pixels)
+log.info("fiber range                                = %f , %f"%(fibermin,fibermax))
+npix=args.margin # margin around edges of valid fiber and wavelength range
+fibermin+=npix*dfiberdpix
+fibermax-=npix*dfiberdpix # hard-coded for now
+log.info("after margin cut of %d pixels, fiber range = %f , %f"%(npix,fibermin,fibermax))
+
+
+
+wmin=np.min(wave_of_pixels)
+wmax=np.max(wave_of_pixels)
+log.info("wavelength range accessible to at least one fiber = %f , %f"%(wmin,wmax))
+tmp=np.min(wave_of_pixels,axis=0)
+wmin=np.max(tmp)
+tmp=np.max(wave_of_pixels,axis=0)
+wmax=np.min(tmp)
+log.info("wavelength range accessible to all fibers         = %f , %f"%(wmin,wmax))
+wmin+=npix*dwavedpix
+wmax-=npix*dwavedpix
+log.info("after margin cut of %d pixels, wavelength range   = %f , %f"%(npix,wmin,wmax))
+
+wave_of_pixels=wave_of_pixels.ravel()
+fiber_of_pixels=fiber_of_pixels.ravel()
+mask0=(fiber_of_pixels>=fibermin)*(fiber_of_pixels<=fibermax)*(wave_of_pixels>=wmin)*(wave_of_pixels<=wmax)
+mask = mask0+0
+mask *= (image>0.01*np.mean(image))
+
+log.info("sorting pixels for interpolation")
+
+wave_of_pixels_indices=np.argsort(wave_of_pixels)
+fiber_of_pixels_indices=np.argsort(fiber_of_pixels)
+
+
+# spectrum array to fit
+wave=np.linspace(wmin,wmax,image_shape[0]//2)
+step=(wave[1]-wave[0])
+log.info("wave step=%f"%step)
+wave_bins=np.append(wave-step/2.,[wave[-1]+step/2.])
+#print("wave_bins=",wave_bins[:4],wave_bins[-4:])
+
+# transmission array to fit
+fibers=np.linspace(fibermin,fibermax,image_shape[1])
+step=(fibers[1]-fibers[0])
+log.info("fiber coord. step=%f"%step)
+fiber_bins=np.append(fibers-step/2.,[fibers[-1]+step/2.])
+#print("fiber_bins=",fiber_bins[:4],fiber_bins[-4:])
+
+number_of_components=args.ncomp
+other_components_image=np.zeros(image.shape)
+
+spectra=np.zeros((number_of_components,wave.size))
+transmissions=np.zeros((number_of_components,fibers.size))
+spectrum_images=np.zeros((number_of_components,)+image.shape)
+trans_images=np.zeros((number_of_components,)+image.shape)
+
+
+
+
+log.info("start iterative loop")
+previous_rms=0.
+superloop=0
+current_component=0
+loop=0
+superloop_nmax=5 # three times through the components
+loop_nmax=40 # max number of iteration steps per component
+
+spectrum_images[current_component] += 1.
+trans_images[current_component] += 1.
+
+while True :
+    
+
+    if ( loop>2 or current_component>0 ) and ( superloop==0 ) : # freeze mask after first loop on all components
+
+        # NEED TO DO A MEDIAN FILTERING IN BOTH DIMENSIONS FOR MASKING 
+        
+        mask = mask0+0
+        mask *= (image>0.001*np.mean(image))
+        #mask *= (np.abs(flat-1)<3*np.max(previous_rms,0.05))
+        mask *= (np.abs(flat-1)<0.9)
+    
+    number=1000*superloop+100*current_component+loop
+        
+    log.info("#%04d fit spectrum"%(number))
+    h0,junk=np.histogram(wave_of_pixels,bins=wave_bins,weights=(mask*trans_images[current_component]**2))
+    h1,junk=np.histogram(wave_of_pixels,bins=wave_bins,weights=(mask*(image-other_components_image)*trans_images[current_component]))    
+    spectra[current_component]=(h0!=0)*h1/(h0+(h0==0))
+    if current_component>0 :
+        if np.mean(spectra[current_component])<0 :
+            log.info("CHANGE SIGN OF SPECTRUM %d"%current_component)
+            spectra[current_component] *= -1.
+    if superloop>0 :
+        i=np.where(spectra[current_component]<0)[0]
+        if i.size>0 :
+            log.info("FORCE POSITIVE SPECTRUM %d for %d bins"%(current_component,i.size))
+            spectra[current_component][i]=0.
+    
+    spectrum_images[current_component][wave_of_pixels_indices]=np.interp(wave_of_pixels[wave_of_pixels_indices],wave,spectra[current_component])
+    
+    log.info("#%04d fit transmission"%(number))
+    h0,junk=np.histogram(fiber_of_pixels,bins=fiber_bins,weights=(mask*spectrum_images[current_component]**2))
+    h1,junk=np.histogram(fiber_of_pixels,bins=fiber_bins,weights=(mask*(image-other_components_image)*spectrum_images[current_component]))
+    transmissions[current_component]=(h0!=0)*h1/(h0+(h0==0))
+
+    if superloop>0 :
+        i=np.where(transmissions[current_component]<0)[0]
+        if i.size>0 :
+            log.info("FORCE POSITIVE TRANSMISSIONS %d for %d bins"%(current_component,i.size))
+            transmissions[current_component][i]=0.
+    
+
+
+    if current_component == 0 : 
+        scale=1./np.max(transmissions[current_component])
+        #scale=1./np.median(transmissions[current_component])
+    else :
+        scale=1./np.max(transmissions[current_component])
+        #scale=1./np.median(np.abs(transmissions[current_component]))
+        
+    transmissions[current_component] *= scale
+    spectra[current_component] /= scale
+    spectrum_images[current_component] /= scale
+    trans_images[current_component][fiber_of_pixels_indices]=np.interp(fiber_of_pixels[fiber_of_pixels_indices],fibers,transmissions[current_component])
+       
+    model=other_components_image+trans_images[current_component]*spectrum_images[current_component]
+    flat=(model>0)*image/(model+(model==0))
+    
+    if args.amplifier_stitching :
+        
+        n0=image_shape[0]
+        n1=image_shape[1]
+        image=image.reshape(image_shape)
+        flat=flat.reshape(image_shape)
+        
+        '''
+            # method 1 : squares about center
+            margin=200
+            a=np.median(flat[n0//2-margin:n0//2,n1//2-margin:n1//2])
+            b=np.median(flat[n0//2-margin:n0//2,n1//2:n1//2+margin])
+            c=np.median(flat[n0//2:n0//2+margin,n1//2-margin:n1//2])
+            d=np.median(flat[n0//2:n0//2+margin,n1//2:n1//2+margin])
+            mean=(a*b*c*d)**0.25
+            a/=mean ; b/=mean ; c/=mean ; d/=mean
+            log.info("#%d #%d stitching of amplifiers abcd= %f %f %f %f"%(loop,current_component,a,b,c,d))
+            image[:n0//2,:n1//2] /= a
+            image[:n0//2,n1//2:] /= b
+            image[n0//2:,:n1//2] /= c
+            image[:n0//2,:n1//2] /= d
+        '''        
+        
+        # method 2 : bands
+        margin=10
+        # a/b
+        a=np.median(flat[:n0//2,n1//2-margin:n1//2])
+        b=np.median(flat[:n0//2,n1//2:n1//2+margin])
+        mean=np.sqrt(a*b)
+        a/=mean ; b/=mean
+        #log.info("#%d ab= %f %f"%(loop,a,b))
+        image[:n0//2,:n1//2] /= np.sqrt(a) # sqrt because we want to converge slowly and not overshoot
+        image[:n0//2,n1//2:] /= np.sqrt(b)
+        # c/d
+        c=np.median(flat[n0//2:,n1//2-margin:n1//2])
+        d=np.median(flat[n0//2:,n1//2:n1//2+margin])
+        mean=np.sqrt(c*d)
+        c/=mean ; d/=mean
+        #log.info("#%d cd= %f %f"%(loop,c,d))
+        image[n0//2:,:n1//2] /= np.sqrt(c)
+        image[n0//2:,n1//2:] /= np.sqrt(d)
+        # a/c
+        a=np.median(flat[n0//2-margin:n0//2,:n1//2])
+        c=np.median(flat[n0//2:n0//2+margin,:n1//2])
+        mean=np.sqrt(a*c)
+        a/=mean ; c/=mean
+        #log.info("#%d ac= %f %f"%(loop,a,c))
+        image[:n0//2,:n1//2] /= np.sqrt(a)
+        image[n0//2:,:n1//2] /= np.sqrt(c)
+        # b/d
+        b=np.median(flat[n0//2-margin:n0//2,n1//2:])
+        d=np.median(flat[n0//2:n0//2+margin,n1//2:])
+        mean=np.sqrt(b*d)
+        b/=mean ; d/=mean
+        #log.info("#%d bd= %f %f"%(loop,b,d))
+        image[:n0//2,n1//2:] /= np.sqrt(b)
+        image[n0//2:,n1//2:] /= np.sqrt(d)
+        log.info("#%04d stitching of amplifiers abcd= %f %f %f %f"%(number,a,b,c,d))
+
+        image=image.ravel()
+        flat=(model>0)*image/(model+(model==0))
+        
+    flat[mask==0]=1.
+    rms=np.std(flat[mask>0])
+    log.info("#%04d flat med,rms[mask]=%f %f rms,min,max[mask0]=%f %f %f"%(number,np.median(flat[mask>0]),rms,np.std(flat[mask0>0]),np.min(flat[mask0>0]),np.max(flat[mask0>0])))
+
+    loop +=1
+
+    if ( np.abs(rms-previous_rms)<0.0005 and loop>1 ) or loop>=loop_nmax:
+        
+        loop=0
+        current_component += 1
+        if current_component >= number_of_components :
+            current_component=0
+            superloop += 1
+            if superloop >= superloop_nmax :
+                log.info("have been %d times through the components, exiting loop"%superloop_nmax)
+                break
+        
+        if superloop>0 and current_component==0 :
+            log.info("REORGANISING COMPONENTS")
+
+            if superloop==1 : # fit for T1=a*T2+b
+                A=np.zeros((2,2))
+                B=np.zeros((2))
+                A[0,0]=float(transmissions[0].size)
+                A[0,1]=A[1,0]=np.sum(transmissions[1])
+                A[1,1]=np.sum(transmissions[1]**2)
+                B[0]=np.sum(transmissions[0])
+                B[1]=np.sum(transmissions[0]*transmissions[1])
+                X=np.linalg.inv(A).dot(B)
+                a=-X[1]
+                log.info("ADD %f*TRANS1 to TRANS0"%a)
+                transmissions[0] += a*transmissions[1]
+                spectra[1] -= a*spectra[0]
+                # test sign of spectra1
+                if np.mean(spectra[1])<0 :
+                    log.info("CHANGE SIGN OF COMP1")
+                    spectra[1]*=-1
+                    transmissions[1]*=-1
+            
+            if 1 : # make T1 positive
+                i=np.argmin(transmissions[1])
+                if transmissions[1][i]<0 :
+                    a=-transmissions[1][i]/transmissions[0][i]
+                    log.info("ADD %f*TRANS0 to TRANS1"%a)
+                    transmissions[1]+=a*transmissions[0]
+                    spectra[0]-=a*spectra[1]
+            if 1 : # normalize T1
+                scale=np.max(transmissions[1])
+                if scale>1 :
+                    log.info("SCALE TRANS1 = %f"%(1/scale))
+                    transmissions[1]/=scale
+                    spectra[1]*=scale
+            if 1 : # make S1 positive
+                i=np.argmin(spectra[1])
+                if spectra[1][i]<0 :
+                    a=-spectra[1][i]/spectra[0][i]
+                    log.info("ADD %f*SPEC0 to SPEC1"%a)
+                    spectra[1]+=a*spectra[0]
+                    transmissions[0]-=a*transmissions[1]
+            if 1 : # make S0 positive
+                i=np.argmin(spectra[0])
+                if spectra[0][i]<0 :
+                    a=-spectra[0][i]/spectra[1][i]
+                    log.info("ADD %f*SPEC1 to SPEC0"%a)
+                    spectra[0]+=a*spectra[1]
+                    transmissions[1]-=a*transmissions[0]
+
+        # compute sum of other components
+        other_components_image *= 0.
+        for c in range(number_of_components) :               
+            spectrum_images[c][wave_of_pixels_indices]=np.interp(wave_of_pixels[wave_of_pixels_indices],wave,spectra[c])
+            trans_images[c][fiber_of_pixels_indices]=np.interp(fiber_of_pixels[fiber_of_pixels_indices],fibers,transmissions[c])
+            if c != current_component :
+                other_components_image += trans_images[c]*spectrum_images[c]
+        
+        log.info("restart with another component #%d"%current_component)
+        
+        if np.std(trans_images[current_component]) == 0 :
+            log.info("starting point for next component, spectrum is average residual on one side of CCD")
+            trans_images[current_component]    += (fiber_of_pixels<np.mean(fiber_of_pixels))
+            
+            
+    if loop>=loop_nmax :
+        log.warning("max loop number %d reached"%loop_nmax)
+        break
+        
+        
+    previous_rms=rms
+    
+
+if args.debug :
+    log.info("writing final spectrum trans model")
+    for c in range(number_of_components) :
+        mo=trans_images[c]*spectrum_images[c]
+        mo[mask]=0
+        pyfits.writeto("model-%d.fits"%c,mo.reshape(image_shape),clobber=True)
+    
+    h=pyfits.HDUList([pyfits.PrimaryHDU(spectra),pyfits.ImageHDU(wave,name="WAVELENGTH")])
+    h.writeto("spectra.fits",clobber=True)
+    h=pyfits.HDUList([pyfits.PrimaryHDU(transmissions),pyfits.ImageHDU(fibers,name="FIBER")])
+    h.writeto("transmissions.fits",clobber=True)
+    model[mask]=0
+    pyfits.writeto("model-tot.fits",model.reshape(image_shape),clobber=True)
+    pyfits.writeto("image-modified.fits",image.reshape(image_shape),clobber=True)
+    pyfits.writeto("mask.fits",mask.reshape(image_shape),clobber=True)
+    
+
+log.info("writing %s ..."%args.outfile)
+pyfits.writeto(args.outfile,flat.reshape(image_shape),clobber=True)
+
+log.info("done")
+
+
+
+
+
+

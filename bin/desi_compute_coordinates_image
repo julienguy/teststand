@@ -1,0 +1,128 @@
+#!/usr/bin/env python
+
+import sys
+import argparse
+import astropy.io.fits as pyfits
+import specter.psf
+import matplotlib.pyplot as plt
+import numpy as np
+from desiutil.log import get_logger
+from numpy.polynomial.legendre import legval
+
+def readpsf(filename) :
+    try :
+        psftype=pyfits.open(filename)[0].header["PSFTYPE"]
+    except KeyError :
+        psftype=""
+    print("PSF Type=",psftype)
+    if psftype=="GAUSS-HERMITE" :
+        return specter.psf.GaussHermitePSF(filename)
+    elif psftype=="SPOTGRID" :
+        return specter.psf.SpotGridPSF(filename)
+
+def compute_monomials(uwave,ufiber,degree=3) :
+    if uwave.shape != ufiber.shape :
+        log.error("arrays must have same shape")
+        sys.exit(12)
+
+    nl=degree+1 # legendre degree + 1
+    c=np.eye(nl)
+    hfiber=legval(ufiber,c)
+    hwave=legval(uwave,c)
+    # now need to multiply this to get a shape (nl,nl)+uwave.shape
+    h=np.zeros((nl,nl)+uwave.shape)
+    for li in range(nl) :
+        for lj in range(nl) :
+            h[lj,li]=hfiber[li]*hwave[lj]
+    return h.reshape((nl**2,)+uwave.shape)
+
+def compute_coefficients(monomials,x,y=None) :
+    ncoef=monomials.shape[0]
+    tmp=list(monomials.shape)
+    nn=tmp[1]
+    for i in range(2,len(tmp)) :
+        nn *= tmp[i]
+    m=monomials.reshape(ncoef,nn)
+    tx=x.reshape(nn)
+    A=np.dot(m,m.T)
+    Ai=np.linalg.inv(A)
+    Bx=m.dot(tx)
+    return Ai.dot(Bx)
+
+
+parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter,description="",epilog="")
+parser.add_argument('-p','--psf', type = str, default = None, required = True, 
+                    help = 'path to input psf filename for trace coordinates')
+parser.add_argument('-o','--outfile', type = str, default = None, required = True, 
+                    help = 'path to output coordinates fits image')
+parser.add_argument('-d','--degree', type = int, default = 6, required = False, 
+                    help = 'legendre degree of transformations')
+
+
+log =  get_logger()
+args        = parser.parse_args()
+
+psf=readpsf(args.psf)
+
+# grid used to define the coordinate transformation
+wstep=200.
+waves=np.linspace(psf.wmin,psf.wmax,int((psf.wmax-psf.wmin)/wstep))
+fibers=np.arange(psf.nspec)
+# 2d version, same array orientation as image [y,x] or [wave,fiber]
+fibers_2d=np.tile(fibers,(waves.size,1))
+waves_2d=np.tile(waves,(fibers.size,1)).T 
+
+log.info("compute transfo on grid from psf file")
+x_of_fiber_wave=np.zeros((waves.size,fibers.size))
+y_of_fiber_wave=np.zeros((waves.size,fibers.size))
+for i,fiber in enumerate(fibers) :
+    for j,wave in enumerate(waves) :
+        tx,ty = psf.xy(fiber,wave)
+        x_of_fiber_wave[j,i]=tx
+        y_of_fiber_wave[j,i]=ty
+
+fmin=fibers[0]-0.2
+fmax=fibers[-1]+0.2
+
+ufibers_2d=2*(fibers_2d-fmin)/(fmax-fmin)-1.
+uwaves_2d=2*(waves_2d-waves[0])/(waves[-1]-waves[0])-1.        
+
+log.info("fit fiber,wave -> x,y with 2D legendre polynomials")
+m=compute_monomials(uwaves_2d,ufibers_2d,degree=args.degree)
+coefs_x = compute_coefficients(m,x_of_fiber_wave)
+coefs_y = compute_coefficients(m,y_of_fiber_wave)
+
+log.info("fit x,y -> fiber,wave with 2D legendre polynomials")
+uy_of_fiber_wave = 2*y_of_fiber_wave/float(psf.npix_y)-1.
+ux_of_fiber_wave = 2*x_of_fiber_wave/float(psf.npix_x)-1.
+m=compute_monomials(uy_of_fiber_wave,ux_of_fiber_wave,degree=args.degree)
+coefs_w = compute_coefficients(m,waves_2d)
+coefs_f = compute_coefficients(m,fibers_2d)
+
+log.info("compute wave and fiber coordinate of all pixels in CCD")
+xx=np.arange(psf.npix_x)
+yy=np.arange(psf.npix_y)
+xx2d=np.tile(xx,(yy.size,1))
+yy2d=np.tile(yy,(xx.size,1)).T
+uxx2d=2*xx2d/float(psf.npix_x)-1
+uyy2d=2*yy2d/float(psf.npix_y)-1
+log.info("compute monomials")
+m=compute_monomials(uyy2d,uxx2d,degree=args.degree)
+log.info("compute products")
+wave_of_pixels=m.T.dot(coefs_w).T
+fiber_of_pixels=m.T.dot(coefs_f).T
+
+hdulist=pyfits.HDUList([pyfits.PrimaryHDU(wave_of_pixels),pyfits.ImageHDU(fiber_of_pixels,name="FIBER")])
+hdulist[0].header["EXTNAME"]="WAVELENGTH"
+hdulist.writeto(args.outfile,clobber=True)
+log.info("all transfo done, wrote %s"%(args.outfile))
+
+
+
+
+
+
+
+
+
+
