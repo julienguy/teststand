@@ -6,7 +6,6 @@ import pylab
 from numpy.polynomial.legendre import legval
 import desimodel.io
 import desispec.io
-#from specter.psf.gausshermite import GaussHermitePSF
 import sys
 import argparse
 import string
@@ -26,30 +25,29 @@ parser.add_argument('--sim', action = 'store_true',help="compare with simulation
 args        = parser.parse_args()
 
 psf=pyfits.open(args.psf)
-cam=psf[1].header["CAMERA"].strip().replace("'","").strip()
+
+xhdu=psf["XTRACE"]
+yhdu=psf["YTRACE"]
+wavemin=xhdu.header["WAVEMIN"]
+wavemax=xhdu.header["WAVEMAX"]
+xcoef=xhdu.data
+ycoef=yhdu.data
+
+psfhdu=psf["PSF"]
+cam=psfhdu.header["CAMERA"].strip().replace("'","").strip()
 arm=cam[0]
 print("CAMERA=",cam,"ARM=",arm)
 
-params=psf[1].data["PARAM"]
+
+params=psfhdu.data["PARAM"]
 for i in range(params.size) :
     params[i]=params[i].strip()
-
-xindex= np.where(params=="X")[0][0]
-yindex= np.where(params=="Y")[0][0]
 ghsigx_index= np.where(params=="GHSIGX")[0][0]
 ghsigy_index= np.where(params=="GHSIGY")[0][0]
-wavemin=psf[1].data["WAVEMIN"][xindex]
-wavemax=psf[1].data["WAVEMAX"][xindex]
-if psf[1].data["WAVEMIN"][yindex] != wavemin :
-    print("unexpected difference")
-    sys.exit(12)
-
-fibermin=int(psf[1].header["FIBERMIN"])
-fibermax=int(psf[1].header["FIBERMAX"])
-legdeg=psf[1].header["LEGDEG"]
-table=psf[1].data
-xcoef=table["COEFF"][xindex]
-ycoef=table["COEFF"][yindex]
+fibermin=int(psfhdu.header["FIBERMIN"])
+fibermax=int(psfhdu.header["FIBERMAX"])
+legdeg=psfhdu.header["LEGDEG"]
+table=psfhdu.data
 ghsigx_coef=table["COEFF"][ghsigx_index]
 ghsigy_coef=table["COEFF"][ghsigy_index]
 
@@ -62,19 +60,19 @@ refwave=int(np.mean(wave))
 
 fig=pylab.figure()
 
-nx=3
+nx=2
 if args.sim :
     ny=3
 else :
-    ny=2
+    ny=3
 
 pcount=1
 a0=pylab.subplot(ny,nx,pcount) ; pcount+=1
-a1=pylab.subplot(ny,nx,pcount) ; pcount+=1
-a2=pylab.subplot(ny,nx,pcount) ; pcount+=1
-a3=pylab.subplot(ny,nx,pcount) ; pcount+=1
-a4=pylab.subplot(ny,nx,pcount) ; pcount+=1
 a5=pylab.subplot(ny,nx,pcount) ; pcount+=1
+a1=pylab.subplot(ny,nx,pcount) ; pcount+=1
+a3=pylab.subplot(ny,nx,pcount) ; pcount+=1
+a2=pylab.subplot(ny,nx,pcount) ; pcount+=1
+a4=pylab.subplot(ny,nx,pcount) ; pcount+=1
 
 for spec in range(nspec) :
     x = legval(u(wave,wavemin,wavemax), xcoef[spec])
@@ -92,22 +90,22 @@ for spec in range(nspec) :
 
 a0.set_xlabel("X CCD")
 a0.set_ylabel("Y CCD")
+a5.set_xlabel("Y CCD")
+a5.set_ylabel("Wavelength [A]")
 
-a1.set_xlabel("Wavelength [A]")
+#a1.set_xlabel("Wavelength [A]")
 a1.set_ylabel("Cross-dispersion sigma (pixels)")
+
+#a3.set_xlabel("Fiber #, @%dA"%refwave)
+#a3.set_ylabel("Cross-dispersion sigma (pixels)")
 
 a2.set_xlabel("Wavelength [A]")
 a2.set_ylabel("Dispersion/resolution sigma (pixels)")
 
-a3.set_xlabel("Fiber #, @%dA"%refwave)
-a3.set_ylabel("Cross-dispersion sigma (pixels)")
-
 a4.set_xlabel("Fiber #, @%dA"%refwave)
-a4.set_ylabel("Dispersion/resolution sigma (pixels)")
+#a4.set_ylabel("Dispersion/resolution sigma (pixels)")
 
 
-a0.set_xlabel("X CCD")
-a0.set_ylabel("Y CCD")
 
 
 

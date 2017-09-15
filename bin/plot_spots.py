@@ -37,13 +37,16 @@ for filename in args.psf :
 
         ok1=np.where((spots["EFLUX"]>0)&(spots["FIBER"]==fiber))[0]
         ok2=np.where((spots["STATUS"]==1)&(spots["EFLUX"]>0)&(spots["FIBER"]==fiber))[0]
-        a2.plot(spots["WAVE"][ok1],spots["FLUX"][ok1]/spots["EFLUX"][ok1],"x",c="gray")
-        a2.plot(spots["WAVE"][ok2],spots["FLUX"][ok2]/spots["EFLUX"][ok2],"o")
+        #a2.plot(spots["WAVE"][ok1],spots["FLUX"][ok1]/spots["EFLUX"][ok1],"x",c="gray")
+        #a2.plot(spots["WAVE"][ok2],spots["FLUX"][ok2]/spots["EFLUX"][ok2],"o")
+        a2.plot(spots["WAVE"][ok1],spots["FLUX"][ok1],"x",c="gray")
+        a2.plot(spots["WAVE"][ok2],spots["FLUX"][ok2],"o")
         
 a1.set_xlabel("XCCD")
 a1.set_ylabel("YCCD")
 a2.set_xlabel("wavelength")
-a2.set_ylabel("S/N")
+#a2.set_ylabel("S/N")
+a2.set_ylabel("FLUX")
 a2.grid()        
 plt.show()
 

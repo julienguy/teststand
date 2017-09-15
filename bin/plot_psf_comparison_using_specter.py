@@ -29,9 +29,11 @@ parser.add_argument('--psf2', type = str, default = None, required = True,
 parser.add_argument('--fiber', type = int, default = None, required = True,
                     help = 'fiber for psf1')
 parser.add_argument('--fiber2', type = int, default = None, required = False,
-                    help = 'fiber for psf2 (default=fiber1)')
+                    help = 'fiber for psf2 (default=fiber)')
 parser.add_argument('--wavelength', type = float, default = 6000., required = False,
                     help = 'wavelength')
+parser.add_argument('--wavelength2', type = float, default = None, required = False,
+                    help = 'wavelength  for psf2 (default=wavelength)')
 parser.add_argument('-o','--output', type = str, default = None, required = False,
                     help = 'path to output image (png) file')
 parser.add_argument('--no-pixel-convolution', action = "store_true",
@@ -44,11 +46,15 @@ if args.fiber2 is None :
     fiber2=args.fiber
 else :
     fiber2=args.fiber2
+if args.wavelength2 is None :
+    wavelength2=args.wavelength
+else :
+    wavelength2=args.wavelength2
 
 psf1=readpsf(args.psf1)
 psf2=readpsf(args.psf2)
 xy1=psf1.xy(args.fiber,args.wavelength)
-xy2=psf2.xy(fiber2,args.wavelength)
+xy2=psf2.xy(fiber2,wavelength2)
 print("for psf1, xy=",xy1)
 print("for psf2, xy=",xy2)
 
@@ -60,7 +66,7 @@ x1d=np.linspace(-hw,hw,51)
 x=np.tile(x1d,(n1d,1))
 y=x.T
 fpix1=psf1._value(x+xy1[0],y+xy1[1],args.fiber,args.wavelength)
-fpix2=psf2._value(x+xy2[0],y+xy2[1],fiber2,args.wavelength)
+fpix2=psf2._value(x+xy2[0],y+xy2[1],fiber2,wavelength2)
 fpix1 /= np.sum(fpix1)
 fpix2 /= np.sum(fpix2)
 
@@ -109,10 +115,17 @@ a=plt.subplot(2,2,1)
 plt.imshow(fpix1,origin=0,interpolation="nearest",extent=(-hw,hw,-hw,hw))
 plt.text(-hw+0.3,-hw+0.8,"fiber #%d lambda=%dA"%(args.fiber,args.wavelength),fontsize=10,color="white")
 plt.text(-hw+0.3,-hw+0.1,"(x,y)=(%4.1f,%4.1f)"%(xy1[0],xy1[1]),fontsize=10,color="white")
+for i in np.arange(-4,5) :
+    plt.axvline(i,c="gray",alpha=0.5)
+    plt.axhline(i,c="gray",alpha=0.5)
+    
 plt.subplot(2,2,2)
 plt.imshow(fpix2,origin=0,interpolation="nearest",extent=(-hw,hw,-hw,hw))
 plt.text(-hw+0.3,-hw+0.8,"fiber #%d lambda=%dA"%(fiber2,args.wavelength),fontsize=10,color="white")
 plt.text(-hw+0.3,-hw+0.1,"(x,y)=(%4.1f,%4.1f)"%(xy2[0],xy2[1]),fontsize=10,color="white")
+for i in np.arange(-4,5) :
+    plt.axvline(i,c="gray",alpha=0.5)
+    plt.axhline(i,c="gray",alpha=0.5)
 a=plt.subplot(2,2,3,title="x prof.")
 
 plt.plot(x[n1d//2,:],fpix1[n1d//2,:],c="b",lw=2)
