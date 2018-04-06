@@ -36,6 +36,8 @@ parser.add_argument('-o','--output', type = str, default = None, required = Fals
                     help = 'path to output image (png) file')
 parser.add_argument('--no-pixel-convolution', action = "store_true",
                     help = 'do not convolve PSFs with pixel size')
+parser.add_argument('--transpose', action = "store_true",
+                    help = 'flip x and y for psf2')
 
 
 args        = parser.parse_args()
@@ -61,6 +63,8 @@ x=np.tile(x1d,(n1d,1))
 y=x.T
 fpix1=psf1._value(x+xy1[0],y+xy1[1],args.fiber,args.wavelength)
 fpix2=psf2._value(x+xy2[0],y+xy2[1],fiber2,args.wavelength)
+if args.transpose :
+    fpix2=fpix2.T
 fpix1 /= np.sum(fpix1)
 fpix2 /= np.sum(fpix2)
 
@@ -80,6 +84,7 @@ if not args.no_pixel_convolution :
 
 fpix1 /= np.sum(fpix1)
 fpix2 /= np.sum(fpix2)
+
 
 
 mx1=np.sum(fpix1*x)

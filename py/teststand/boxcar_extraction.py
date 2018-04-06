@@ -35,23 +35,11 @@ def boxcar(psf, image_file, fibers=None, width=7, side_bands=False) :
     # it is a boot or specex psf ?
     psftype=psf[0].header["PSFTYPE"]
     log.info("psf is a '%s'"%psftype)
-    if psftype == "bootcalib" :    
-        wavemin = psf[0].header["WAVEMIN"]
-        wavemax = psf[0].header["WAVEMAX"]
-        xcoef   = psf[0].data
-        ycoef   = psf[1].data
-        xsig    = psf[2].data
-    elif psftype == "GAUSS-HERMITE" :
-        table=psf[1].data        
-        i=np.where(table["PARAM"]=="X")[0][0]
-        wavemin=table["WAVEMIN"][i]
-        wavemax=table["WAVEMAX"][i]
-        xcoef=table["COEFF"][i]
-        i=np.where(table["PARAM"]=="Y")[0][0]
-        ycoef=table["COEFF"][i]
-        i=np.where(table["PARAM"]=="GHSIGX")[0][0]
-        xsig=table["COEFF"][i]
-
+    wavemin = psf["XTRACE"].header["WAVEMIN"]
+    wavemax = psf["XTRACE"].header["WAVEMAX"]
+    xcoef   = psf["XTRACE"].data
+    ycoef   = psf["YTRACE"].data
+    
     if fibers is None :
         fibers = np.arange(xcoef.shape[0])
     

@@ -204,9 +204,10 @@ def fitall(previous_deltat=0) :
         compute_corrflux()
 
         if loop<5 : continue
-        
-        #fit_nonlin_corr2(deltat,x)
-        #compute_corrflux()
+    
+        if args.fit_non_lin :
+            fit_nonlin_corr2(deltat,x)
+            compute_corrflux()
         
         # fit deltat , need to add weights !!!  
         coef=np.polyfit(x["expreq"],x["corrflux"],w=x["corrfluxivar"],deg=1)
@@ -234,12 +235,12 @@ x["transcorr"]=np.ones(x["flux"].size)
 x["ivar"]= 1./( 1./x["ivar"] + (0.002*x["flux"])**2 )
 
 #mask=(x["flux"]<35000) # for b1
-mask=(x["flux"]<15000) # for r1
+mask=(x["flux"]<40000) # for r1
 
 #mask=(x["expreq"]<100)
 for k in x.keys() : x[k]=x[k][mask]
 
-deltat=-0.36
+deltat=-0.6
 deltats=[deltat]
 
 compute_corrflux()

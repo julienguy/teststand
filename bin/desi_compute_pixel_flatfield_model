@@ -8,6 +8,38 @@ import numpy as np
 from desiutil.log import get_logger
 
 
+def median_image(image_filenames) :
+    """ Return a median of input images after rescaling each image
+    
+    Args:
+        image_filenames : list of preprocessed image path
+
+    Returns:
+        mimage : median image (2D np.array)
+        ivar   : ivar of median
+    """
+    
+    log.debug("first median")
+    images=[]
+    ivars=[]
+    for filename in image_filenames  :
+        h=pyfits.open(filename)
+        images.append(h[0].data)
+        ivars.append(h["IVAR"].data)
+    
+    mimage=np.median(images,axis=0)
+    log.debug("compute a scale per image")
+    smimage2=np.sum(mimage**2)
+    for i in range(len(images)) :
+        a=np.sum(images[i]*mimage)/smimage2
+        log.debug("scale %d = %f"%(i,a))
+        if a<=0 :
+            raise ValueError("scale = %f for image %s"%(a,image_filenames[i]))
+        images[i] /= a
+        ivars[i] *= a**2
+    mimage=np.median(images,axis=0)
+    ivar=np.sum(ivars,axis=0)*(2./np.pi) # penalty factor for median
+    return mimage,ivar
 
 
 parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter,description="",epilog="")
@@ -29,18 +61,19 @@ parser.add_argument('--debug', action = 'store_true',
 log =  get_logger()
 args        = parser.parse_args()
 
+image=None
+ivar=None
 if len(args.images) == 1 :
-    image=pyfits.open(args.images[0])[0].data
+    hdulist = pyfits.open(args.images[0])
+    image=hdulist[0].data
+    ivar=hdulist["IVAR"].data    
 else :
     log.info("Compute a median of the input images")
-    images=[]
-    for filename in args.images :
-        h=pyfits.open(filename)
-        images.append(h[0].data)
-    image=np.median(images,axis=0)
+    image,ivar=median_image(args.images)
 
 image_shape=image.shape
 image=image.ravel()
+ivar=ivar.ravel()
 
 log.info("reading wave and fiber coordinate of pixels from %s"%args.coords)
 coords=pyfits.open(args.coords)
@@ -116,8 +149,8 @@ previous_rms=0.
 superloop=0
 current_component=0
 loop=0
-superloop_nmax=5 # three times through the components
-loop_nmax=40 # max number of iteration steps per component
+superloop_nmax=3 # three times through the components
+loop_nmax=5 # max number of iteration steps per component
 
 spectrum_images[current_component] += 1.
 trans_images[current_component] += 1.
@@ -137,8 +170,8 @@ while True :
     number=1000*superloop+100*current_component+loop
         
     log.info("#%04d fit spectrum"%(number))
-    h0,junk=np.histogram(wave_of_pixels,bins=wave_bins,weights=(mask*trans_images[current_component]**2))
-    h1,junk=np.histogram(wave_of_pixels,bins=wave_bins,weights=(mask*(image-other_components_image)*trans_images[current_component]))    
+    h0,junk=np.histogram(wave_of_pixels,bins=wave_bins,weights=(ivar*mask*trans_images[current_component]**2))
+    h1,junk=np.histogram(wave_of_pixels,bins=wave_bins,weights=(ivar*mask*(image-other_components_image)*trans_images[current_component]))    
     spectra[current_component]=(h0!=0)*h1/(h0+(h0==0))
     if current_component>0 :
         if np.mean(spectra[current_component])<0 :
@@ -153,8 +186,8 @@ while True :
     spectrum_images[current_component][wave_of_pixels_indices]=np.interp(wave_of_pixels[wave_of_pixels_indices],wave,spectra[current_component])
     
     log.info("#%04d fit transmission"%(number))
-    h0,junk=np.histogram(fiber_of_pixels,bins=fiber_bins,weights=(mask*spectrum_images[current_component]**2))
-    h1,junk=np.histogram(fiber_of_pixels,bins=fiber_bins,weights=(mask*(image-other_components_image)*spectrum_images[current_component]))
+    h0,junk=np.histogram(fiber_of_pixels,bins=fiber_bins,weights=(ivar*mask*spectrum_images[current_component]**2))
+    h1,junk=np.histogram(fiber_of_pixels,bins=fiber_bins,weights=(ivar*mask*(image-other_components_image)*spectrum_images[current_component]))
     transmissions[current_component]=(h0!=0)*h1/(h0+(h0==0))
 
     if superloop>0 :
@@ -179,6 +212,7 @@ while True :
        
     model=other_components_image+trans_images[current_component]*spectrum_images[current_component]
     flat=(model>0)*image/(model+(model==0))
+    flativar=(model>0)*ivar*model**2
     
     if args.amplifier_stitching :
         
@@ -241,8 +275,10 @@ while True :
 
         image=image.ravel()
         flat=(model>0)*image/(model+(model==0))
+        flativar=(model>0)*ivar*model**2
         
     flat[mask==0]=1.
+    flat[mask==0]=0
     rms=np.std(flat[mask>0])
     log.info("#%04d flat med,rms[mask]=%f %f rms,min,max[mask0]=%f %f %f"%(number,np.median(flat[mask>0]),rms,np.std(flat[mask0>0]),np.min(flat[mask0>0]),np.max(flat[mask0>0])))
 
@@ -350,7 +386,8 @@ if args.debug :
     
 
 log.info("writing %s ..."%args.outfile)
-pyfits.writeto(args.outfile,flat.reshape(image_shape),clobber=True)
+hdulist=pyfits.HDUList([pyfits.PrimaryHDU(flat.reshape(image_shape)),pyfits.ImageHDU(flativar.reshape(image_shape),name="IVAR")])
+hdulist.writeto(args.outfile,clobber=True)
 
 log.info("done")
 

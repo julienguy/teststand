@@ -42,6 +42,8 @@ def plot_graph(frame, fibers, opt_err=False, opt_2d=False, label = None, subplot
     log         = get_logger()
     spectra     = frame["FLUX"].data
     ivar        = frame["IVAR"].data
+    if "MASK" in frame :
+        ivar *= (frame["MASK"].data==0)
     wave        = frame["WAVELENGTH"].data
     nfibers     = spectra.shape[0]
 
@@ -53,7 +55,7 @@ def plot_graph(frame, fibers, opt_err=False, opt_2d=False, label = None, subplot
         subplot  = plt.subplot(1,1,1)
     
     for fiber in fibers :
-        
+        ok = ivar[fiber]>0
         if label :
             fiber_label = "%s Fiber #%d"%(label,fiber)
         else :
@@ -61,16 +63,16 @@ def plot_graph(frame, fibers, opt_err=False, opt_2d=False, label = None, subplot
             
         log.debug("Plotting fiber %03d" % fiber)
         if opt_err :
-            err = np.sqrt(1./ (ivar + (ivar == 0))) * (ivar > 0)
+            err = np.sqrt(1./ (ivar[fiber] + (ivar[fiber] == 0))) * (ivar[fiber] > 0)
             if len(wave.shape) > 1 :
-                subplot.errorbar(wave[fiber], spectra[fiber], err[fiber], fmt="o-", label=fiber_label)
+                subplot.errorbar(wave[fiber][ok], spectra[fiber][ok], err[ok], fmt="o-", label=fiber_label)
             else :
-                subplot.errorbar(wave, spectra[fiber], err[fiber], fmt="o-",label=fiber_label)
+                subplot.errorbar(wave[ok], spectra[fiber][ok], err[ok], fmt="o-",label=fiber_label)
         else :
             if len(wave.shape) > 1 :
-                subplot.plot(wave[fiber], spectra[fiber], "-",label=fiber_label)
+                subplot.plot(wave[fiber][ok], spectra[fiber][ok], "-",label=fiber_label)
             else :
-                subplot.plot(wave, spectra[fiber], "-",label=fiber_label)
+                subplot.plot(wave[ok], spectra[fiber][ok], "-",label=fiber_label)
     
     subplot.set_xlabel("Wavelength [A]")
     

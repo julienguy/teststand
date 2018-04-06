@@ -33,8 +33,10 @@ args        = parser.parse_args()
 fig=plt.figure()
 subplot=plt.subplot(1,1,1)
 
-fibers = parse_fibers(args.fibers)
-
+if args.fibers is not None :
+    fibers = parse_fibers(args.fibers)
+else :
+    fibers = None
 for filename in args.frame :
     frame_file  = pyfits.open(filename)
     if fibers is None :

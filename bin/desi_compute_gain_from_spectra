@@ -22,13 +22,14 @@ def get_traces(psf_filename) :
     # it is a boot or specex psf ?
     psftype=psf[0].header["PSFTYPE"]
     log.debug("psf is a '%s'"%psftype)
-    if psftype == "bootcalib" :    
-        wavemin = psf[0].header["WAVEMIN"]
-        wavemax = psf[0].header["WAVEMAX"]
-        xcoef   = psf[0].data
-        ycoef   = psf[1].data
-        xsig    = psf[2].data
-    elif psftype == "GAUSS-HERMITE" :
+    #if psftype == "bootcalib" :    
+    wavemin = psf["XTRACE"].header["WAVEMIN"]
+    wavemax = psf["YTRACE"].header["WAVEMAX"]
+    xcoef   = psf["XTRACE"].data
+    ycoef   = psf["YTRACE"].data
+    xsig    = 1.
+    '''    
+elif psftype == "GAUSS-HERMITE" :
         table=psf[1].data        
         i=np.where(table["PARAM"]=="X")[0][0]
         wavemin=table["WAVEMIN"][i]
@@ -38,6 +39,7 @@ def get_traces(psf_filename) :
         ycoef=table["COEFF"][i]
         i=np.where(table["PARAM"]=="GHSIGX")[0][0]
         xsig=table["COEFF"][i] 
+    '''
     log.debug("wavelength range : [%f,%f]"%(wavemin,wavemax))
     psf.close()
     
