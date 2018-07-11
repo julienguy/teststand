@@ -26,6 +26,8 @@ parser.add_argument('-b', '--batch', action='store_true', default = False, requi
 parser.add_argument('-o','--output', type = str, default = None, required = False,
                     help = 'save figure in this file')
 parser.add_argument('-l','--legend', action='store_true',help="show legend")
+parser.add_argument('--xlim',type = str, default=None, help="min,max xlim for plot")
+parser.add_argument('--ylim',type = str, default=None, help="min,max ylim for plot")
 
 log         = get_logger()
 args        = parser.parse_args()
@@ -48,6 +50,26 @@ if args.log :
 if args.legend :
     subplot.legend(loc="upper left",fontsize="small")
 subplot.grid()
+
+if args.xlim is not None :
+    try :
+        vv=args.xlim.split(",")
+        vmin=float(vv[0])
+        vmax=float(vv[1])
+        plt.xlim([vmin,vmax])
+    except :
+        print("failed to interpret xlim")
+        print(sys.exc_info())
+if args.ylim is not None :
+    try :
+        vv=args.ylim.split(",")
+        vmin=float(vv[0])
+        vmax=float(vv[1])
+        plt.ylim([vmin,vmax])
+    except :
+        print("failed to interpret ylim")
+        print(sys.exc_info())
+    
 
 if args.output :
    fig.savefig(args.output)

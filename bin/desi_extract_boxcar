@@ -3,6 +3,7 @@
 import argparse
 import sys
 import astropy.io.fits as pyfits
+
 import numpy as np
 import matplotlib.pyplot as plt
 
@@ -10,6 +11,10 @@ from teststand.boxcar_extraction   import boxcar
 from teststand.resample            import resample_to_same_wavelength_grid
 from teststand.graph_tools         import plot_graph,parse_fibers
 from desiutil.log                  import get_logger
+
+from desispec.io import read_image
+from desispec.trace_shifts import read_psf_and_traces,boxcar_extraction_from_filenames
+
 
 parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
 parser.add_argument('-p','--psf', type = str, default = None, required = True,
@@ -38,11 +43,17 @@ if args.outframe is None and not args.show :
     sys.exit(1)
 
 fibers = parse_fibers(args.fibers)
-    
-psf         = pyfits.open(args.psf)
-image_file  = pyfits.open(args.image)
 
-spectra, ivar, wave = boxcar(psf, image_file, fibers=fibers ,width=args.width, side_bands=args.sb)
+# old version
+#psf         = pyfits.open(args.psf)
+#image_file  = pyfits.open(args.image)
+#spectra, ivar, wave = boxcar(psf, image_file, fibers=fibers ,width=args.width, side_bands=args.sb)
+
+# new version
+#psf,xtrace,ytrace,wavemin,wavemax = read_psf_and_traces(args.psf)
+#image = read_image(args.image)
+#spectra, ivar, wave = boxcar_extraction(xtrace,ytrace,wavemin,wavemax, image, fibers=fibers ,width=args.width)
+spectra, ivar, wave = boxcar_extraction_from_filenames(args.image,args.psf,fibers=fibers ,width=args.width)
 
 if fibers is None :
     fibers = spectra.shape[0]
@@ -59,7 +70,9 @@ frame[0].header["EXTNAME"]="FLUX"
 
 # add content of preproc header
 blacklist = ["EXTEND","SIMPLE","NAXIS1","NAXIS2","CHECKSUM","DATASUM","XTENSION","EXTNAME","COMMENT"]
-image_header = image_file[0].header
+hdus=pyfits.open(args.image)
+image_header = hdus[0].header
+hdus.close()
 for key in image_header:
     if ( key not in blacklist ) and ( key not in frame[0].header ) :        
         frame[0].header[key] = image_header[key] 

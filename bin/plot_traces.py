@@ -30,11 +30,17 @@ nfibers=0
 for filename in args.psf :
     print(filename)
     psf=pyfits.open(filename)
-    wmin=psf["XTRACE"].header["WAVEMIN"]
-    wmax=psf["XTRACE"].header["WAVEMAX"]
+    kx = "XTRACE"
+    ky = "YTRACE"
+    if not kx in psf :
+        kx = "XCOEFF"
+        ky = "YCOEFF"
+        
+    wmin=psf[kx].header["WAVEMIN"]
+    wmax=psf[kx].header["WAVEMAX"]
     wave=np.linspace(wmin,wmax,nw)
-    xcoef=psf["XTRACE"].data
-    ycoef=psf["YTRACE"].data
+    xcoef=psf[kx].data
+    ycoef=psf[ky].data
     if waveref is None :
         waveref=wave
     

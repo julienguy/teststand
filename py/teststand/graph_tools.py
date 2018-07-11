@@ -42,8 +42,10 @@ def plot_graph(frame, fibers, opt_err=False, opt_2d=False, label = None, subplot
     log         = get_logger()
     spectra     = frame["FLUX"].data
     ivar        = frame["IVAR"].data
+    
     if "MASK" in frame :
         ivar *= (frame["MASK"].data==0)
+
     wave        = frame["WAVELENGTH"].data
     nfibers     = spectra.shape[0]
 
@@ -69,6 +71,9 @@ def plot_graph(frame, fibers, opt_err=False, opt_2d=False, label = None, subplot
             else :
                 subplot.errorbar(wave[ok], spectra[fiber][ok], err[ok], fmt="o-",label=fiber_label)
         else :
+            #color="b"
+            #if fiber>=10 :
+                #color="r"
             if len(wave.shape) > 1 :
                 subplot.plot(wave[fiber][ok], spectra[fiber][ok], "-",label=fiber_label)
             else :
