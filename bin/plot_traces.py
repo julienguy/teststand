@@ -7,6 +7,7 @@ from numpy.polynomial.legendre import legval
 from teststand.graph_tools         import parse_fibers
 import sys
 import argparse
+import fitsio
 
 def u(wave,wavemin,wavemax) :
     return 2.*(wave-wavemin)/(wavemax-wavemin)-1.
@@ -16,10 +17,22 @@ parser.add_argument('-p','--psf', type = str, nargs="*", default = None, require
                     help = 'path to psf files')
 parser.add_argument('--fibers', type=str, default = None, required = False,
                     help = 'defines from_to which fiber to work on. (ex: --fibers=50:60,4 means that only fibers 4, and fibers from 50 to 60 (excluded) will be plotted)')
+parser.add_argument('--image', type=str, default = None, required = False,
+                    help = 'overplot traces on image')
+parser.add_argument('--lines', type=str, default = None, required = False,
+                    help = 'coma separated list of lines')
 
 args = parser.parse_args()
 
 fibers = parse_fibers(args.fibers)
+
+
+lines=None
+if args.lines :
+    lines=list()
+    for tmp in args.lines.split(",") :
+        lines.append(float(tmp))
+    print("lines=",lines)
 
 waveref=None
 xref=None
@@ -67,8 +80,23 @@ for filename in args.psf :
         yref=y
         if(len(args.psf)==1) :
             plt.figure("traces")
+            
+            if args.image is not None :
+                img=fitsio.read(args.image)
+                vmax=1000
+                for l in range(5) :
+                    vmax=np.median(img[img>vmax])
+                plt.imshow(img,origin=0,vmin=0,vmax=vmax,aspect="auto")
+
             for fiber in range(yref.shape[0]) :
-                plt.plot(xref[fiber],yref[fiber])
+                
+                if lines is not None :
+                    for line in lines :
+                        xl=np.interp(line,wave,legval(u, xcoef[fiber]))
+                        yl=np.interp(line,wave,legval(u, ycoef[fiber]))
+                        plt.plot(xl,yl,"x",color="white")
+
+                plt.plot(xref[fiber],yref[fiber],lw=1,color="white")
     else :
         plt.figure("delta")
         plt.subplot(2,1,1)

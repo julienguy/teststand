@@ -6,7 +6,7 @@ import astropy.io.fits as pyfits
 import argparse
 
 parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
-parser.add_argument('ifile2', metavar='ifile', type=str, nargs='+',
+parser.add_argument('ifile2', metavar='ifile', type=str, nargs='*',
                     help='input fits file(s)')
 parser.add_argument('-i','--ifile', type = str, default = None, required = False, nargs="*",
                     help = 'input fits file(s)')

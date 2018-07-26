@@ -9,7 +9,8 @@ import numpy as np
 from teststand.graph_tools         import plot_graph,parse_fibers
 from desiutil.log                  import get_logger
 import os.path
-                
+from desispec.io import read_fibermap
+               
 parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
 parser.add_argument('-f','--frame', type = str, default = None, required = True, nargs="*",
                     help = 'path to one or several frame fits files')
@@ -28,6 +29,8 @@ parser.add_argument('-o','--output', type = str, default = None, required = Fals
 parser.add_argument('-l','--legend', action='store_true',help="show legend")
 parser.add_argument('--xlim',type = str, default=None, help="min,max xlim for plot")
 parser.add_argument('--ylim',type = str, default=None, help="min,max ylim for plot")
+parser.add_argument('--labels',type = str, default=None, required = False, nargs="*")
+parser.add_argument('--objtype',type = str, default=None, required = False, help="display fibers with this OBJTYPE")
 
 log         = get_logger()
 args        = parser.parse_args()
@@ -39,11 +42,25 @@ if args.fibers is not None :
     fibers = parse_fibers(args.fibers)
 else :
     fibers = None
-for filename in args.frame :
+
+
+
+if args.labels == None or len(args.labels)<len(args.frame) :
+    args.labels = []
+    for filename in args.frame :
+        args.labels.append(os.path.basename(filename))
+
+for filename,label in zip(args.frame,args.labels) :
     frame_file  = pyfits.open(filename)
+    
+    if args.objtype is not None :
+        fmap = read_fibermap(filename)
+        fibers = np.where(fmap["OBJTYPE"]==args.objtype)[0]
+        print("fibers with OBJTYPE={} : {}".format(args.objtype,fibers))
+    
     if fibers is None :
         fibers = np.arange(frame_file[0].data.shape[0])
-    plot_graph(frame=frame_file,fibers=fibers,opt_err=args.err,opt_2d=args.image,label=os.path.basename(filename))
+    plot_graph(frame=frame_file,fibers=fibers,opt_err=args.err,opt_2d=args.image,label=label)
 
 if args.log :
     subplot.set_yscale("log")
