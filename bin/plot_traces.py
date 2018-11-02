@@ -21,6 +21,10 @@ parser.add_argument('--image', type=str, default = None, required = False,
                     help = 'overplot traces on image')
 parser.add_argument('--lines', type=str, default = None, required = False,
                     help = 'coma separated list of lines')
+parser.add_argument('--vmin', type=float, default = None, required = False,
+                    help = 'min value for image display')
+parser.add_argument('--vmax', type=float, default = None, required = False,
+                    help = 'max value for image display')
 
 args = parser.parse_args()
 
@@ -67,6 +71,7 @@ for filename in args.psf :
     wave_is_diff=np.max(np.abs(wave-waveref))>0.05
     
     for fiber in fibers :
+        
         #if fiber%10==0: print(fiber)
         if wave_is_diff :
             x[fiber] = np.interp(waveref,wave,legval(u, xcoef[fiber]))
@@ -74,7 +79,10 @@ for filename in args.psf :
         else :
             x[fiber] = legval(u, xcoef[fiber])
             y[fiber] = legval(u, ycoef[fiber])
-            
+        #print(fiber,"x=",x[fiber])
+        #print(fiber,"y=",y[fiber])
+        
+        
     if xref is None :
         xref=x
         yref=y
@@ -86,7 +94,12 @@ for filename in args.psf :
                 vmax=1000
                 for l in range(5) :
                     vmax=np.median(img[img>vmax])
-                plt.imshow(img,origin=0,vmin=0,vmax=vmax,aspect="auto")
+                vmin=0
+                if args.vmin is not None :
+                    vmin=args.vmin
+                if args.vmax is not None :
+                    vmax=args.vmax
+                plt.imshow(img,origin=0,vmin=vmin,vmax=vmax,aspect="auto")
 
             for fiber in range(yref.shape[0]) :
                 
@@ -96,7 +109,9 @@ for filename in args.psf :
                         yl=np.interp(line,wave,legval(u, ycoef[fiber]))
                         plt.plot(xl,yl,"x",color="white")
 
-                plt.plot(xref[fiber],yref[fiber],lw=1,color="white")
+                color=None
+                if args.image is not None: color="white"
+                plt.plot(xref[fiber],yref[fiber],lw=1,color=color)
     else :
         plt.figure("delta")
         plt.subplot(2,1,1)
