@@ -1,0 +1,97 @@
+#!/usr/bin/env python
+
+import numpy as np
+import astropy.io.fits as pyfits
+import pylab
+import specter.psf
+import sys
+import argparse
+import string
+from   scipy.signal import fftconvolve
+import matplotlib.pyplot as plt
+import argparse
+
+def readpsf(filename) :
+    try :
+        psftype=pyfits.open(filename)[0].header["PSFTYPE"]
+    except KeyError :
+        psftype=""
+    print("PSF Type=",psftype)
+    if psftype=="GAUSS-HERMITE" :
+        return specter.psf.GaussHermitePSF(filename)
+    elif psftype=="SPOTGRID" :
+        return specter.psf.SpotGridPSF(filename)
+
+
+parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+description='''Measure the resolution of each fiber as a function of wavelength and save it in an ASCII file.
+''')
+parser.add_argument('-i','--input', type = str, default = None, required = True, help = 'psf fits file')
+parser.add_argument('-o','--output', type = str, default = None, required = False, help = 'output ASCII file')
+parser.add_argument('--plot', action='store_true')
+
+
+args = parser.parse_args()  
+    
+hw=5.
+n1d=51
+x1d=np.linspace(-hw,hw,51)
+x=np.tile(x1d,(n1d,1))
+y=x.T
+kernel=(np.abs(x1d)<0.5).astype(float)
+kernel/=np.sum(kernel)
+
+filename=args.input
+psf=readpsf(filename)
+wave=np.linspace(psf.wmin,psf.wmax,15)
+resol=[]
+
+fibers=np.arange(psf.nspec)
+if len(fibers)>30 :
+    fibers=np.linspace(0,len(fibers)-1,30).astype(int)
+    
+for fiber in fibers :    
+    R=np.zeros(wave.size)
+    for u,w in enumerate(wave) :
+        xy=psf.xy(fiber,w)
+
+        #fpix=psf._value(x+xy[0],y+xy[1],fiber,w+1.) # just to check orientation
+        fpix=psf._value(x+xy[0],y+xy[1],fiber,w)
+        for i in range(n1d) :
+            fpix[i]=fftconvolve(fpix[i],kernel, mode='same')
+        for j in range(n1d) :
+            fpix[:,j]=fftconvolve(fpix[:,j],kernel, mode='same')
+        proj=np.sum(fpix,axis=1)
+        proj/=np.max(proj)
+        #plt.plot(x1d,proj)
+        #plt.show()
+        x0=np.interp(0.5,proj[:n1d//2-1],x1d[:n1d//2-1])
+        x1=np.interp(0.5,proj[n1d//2+1:][::-1],x1d[n1d//2+1:][::-1])
+        fwhm_pix=x1-x0
+        xy0=psf.xy(fiber,w-0.5)
+        xy1=psf.xy(fiber,w+0.5)
+        pix_per_A=xy1[1]-xy0[1]
+        fwhm_A=fwhm_pix/pix_per_A
+        #print("FWHM = %f pix = %f A"%(fwhm_pix,fwhm_A))
+        R[u]=w/fwhm_A
+        print("fiber %d w = %f R = %f"%(fiber,w,R[u]))
+        #plt.plot([x0,x1],[0.5,0.5],"o")
+        #plt.show()
+    resol.append(R)
+
+
+if args.output :
+    tmp=np.zeros((wave.size,len(resol)+1))
+    tmp[:,0]=wave
+    for i,R in enumerate(resol) :
+        tmp[:,i+1]=R
+    np.savetxt(args.output,tmp)
+    print("wrote",args.output)
+
+if args.plot :
+    for R in resol :
+        plt.plot(wave,R,alpha=0.5)
+    plt.plot([3600,5550,5550,6560,6560,9800],[1500,1500,3000,3000,4000,4000],"--",lw=2,color="blue")
+    plt.ylim([1000,6000])
+    plt.grid() 
+    plt.show()

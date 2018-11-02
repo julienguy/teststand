@@ -1,0 +1,69 @@
+#!/usr/bin/env python
+
+import numpy as np
+import sys,os
+import argparse
+import string
+import matplotlib.pyplot as plt
+
+def readpsf(filename) :
+    try :
+        psftype=pyfits.open(filename)[0].header["PSFTYPE"]
+    except KeyError :
+        psftype=""
+    print("PSF Type=",psftype)
+    if psftype=="GAUSS-HERMITE" :
+        return specter.psf.GaussHermitePSF(filename)
+    elif psftype=="SPOTGRID" :
+        return specter.psf.SpotGridPSF(filename)
+
+
+parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+description='''Measure the resolution of each fiber as a function of wavelength and save it in an ASCII file.
+''')
+parser.add_argument('-i','--input', type = str, default = None, required = True, help = 'resolution ASCII files',nargs='*')
+parser.add_argument('--labels', type = str, default = None, required = False, nargs='*')
+parser.add_argument('--colors', type = str, default = None, required = False, nargs='*')
+parser.add_argument('--mean',action='store_true')
+parser.add_argument('--legend',action='store_true')
+
+
+args = parser.parse_args()
+
+labels=[]
+if args.labels is not None and len(args.labels)==len(args.input) :
+    labels = args.labels
+else :
+    for filename in args.input :
+        labels.append(os.path.basename(filename))
+
+colors=[]
+if args.colors is not None and len(args.colors)==len(args.input) :
+    colors = args.colors
+else :
+    for i,filename in enumerate(args.input) :
+        colors.append("bgr"[i%3])
+
+        
+for filename,label,color in zip(args.input,labels,colors) :
+    tmp=np.loadtxt(filename)
+    nfibers=tmp.shape[1]-1
+    wave=tmp[:,0]
+    if args.mean :
+        mres=np.mean(tmp[:,1:],axis=1)
+        rms=np.std(tmp[:,1:],axis=1)
+        plt.errorbar(wave,mres,rms,label=label,color=color)
+    else :
+        for fiber in range(nfibers) :
+            res=tmp[:,fiber+1]
+            plt.plot(wave,res)
+
+plt.plot([3600,5550,5550,6560,6560,9800],[1500,1500,3000,3000,4000,4000],"--",lw=2,color="k")
+plt.ylim([1000,6000])
+plt.grid()
+if args.legend :
+    plt.legend(loc="upper left",fontsize="small")
+plt.xlabel(r"Wavelength $\lambda$ ( $\AA$ )")
+plt.ylabel(r"Spectral Resolution $R=\lambda/FWHM_{\lambda}$")
+plt.show()
+
