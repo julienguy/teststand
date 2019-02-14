@@ -17,6 +17,7 @@ parser.add_argument('--info', action='store_true',
 parser.add_argument('--hdu',type = str, default = 0, required = False, 
                     help = 'header HDU (int or string)')
 parser.add_argument('--cols', action='store_true', help ="show columns in Table")
+parser.add_argument('--no-filename', action='store_true', help ="do not list the filenames")
 
 
 args        = parser.parse_args()
@@ -58,7 +59,8 @@ if args.key is None or len(args.key)==0 :
 line="#"
 for k in args.key :
     line+=" "+k
-line+=" filename"
+if not args.no_filename :
+    line+=" filename"
 
 print(line)
 
@@ -76,7 +78,8 @@ for filename in filenames :
         except KeyError :
             val="None"
         line+=" "+str(val)
-    line+=" "+filename
+    if not args.no_filename :
+        line+=" "+filename
     print(line)
 
     if args.cols :
