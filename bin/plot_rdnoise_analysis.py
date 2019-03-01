@@ -3,115 +3,69 @@
 import matplotlib.pyplot as plt
 import numpy as np
 import os
-
-# BLUE CAMERA (before ICS transfo) :
-# (complex tranfo, see etc/ics_transfo.py)
-# A C
-# B D
-# 
-# RED CAMERA (before ICS transfo data[::-1,::-1])
-# B A
-# D C
-# 
-# NIR CAMERA (before ICS transfo data[,::-1]) :
-# D C
-# B A
-
-gains={}
-detectors={}
-saclay_rdnoise={}
-
-# SM2
-spectro="SM02"
-detectors["b1"]="sn22802"
-detectors["r1"]="M1-46"
-detectors["z1"]="M1-42"
-gains["b1"]=[1.28,1.29,1.32,1.31]
-gains["r1"]=[1.66,1.50,1.60,1.60]
-gains["z1"]=[1.48,1.49,1.67,1.67]
-saclay_rdnoise["b1"]=[4.55,3.74,3.69,3.40]
-saclay_rdnoise["r1"]=[2.65,2.33,2.56,2.62]
-saclay_rdnoise["z1"]=[3.64,2.70,3.72,2.76]
-# SM3
-spectro="SM03"
-detectors["b2"]="sn22794"
-detectors["r2"]="M1-12"
-detectors["z2"]="M1-22"
-gains["b2"]=[1.28,1.27,1.27,1.29]
-gains["r2"]=[1.77,1.67,1.50,1.53]
-gains["z2"]=[1.45,1.50,1.63,1.52]
-saclay_rdnoise["b2"]=[4.90,3.86,3.90,3.77]
-saclay_rdnoise["r2"]=[3.24,2.88,3.37,2.68]
-saclay_rdnoise["z2"]=[3.72,4.52,3.91,3.23]
-# SM4
-title="SM04 (20190130)"
-spectro="sm4"
-detectors["b3"]="sn22797"
-detectors["r3"]="M1-49"
-detectors["z3"]="M1-53" # WILL CHANGE!
-gains["b3"]= [ 1.32, 1.29 ,1.30 , 1.30] # [1.32,1.30,1.29,1.30]
-gains["r3"]= [ 1.68, 1.51, 1.52, 1.60 ] # 1.51 1.68 1.52 1.60
-gains["z3"]= [ 1.44, 1.47, 1.61, 1.53] # SN5 NIR CRYO HERE !!!!!!!!!!
-saclay_rdnoise["b3"]=[ 5.01,4.14 ,4.39 , 3.67] # [5.01,4.39,4.14,3.67]
-saclay_rdnoise["r3"]=[ 3.45, 2.87, 4.22, 3.23] # 2.87 3.45 3.23 4.22
-saclay_rdnoise["z3"]=[ 3.06, 2.91, 3.24, 2.74] # SN5 NIR CRYO HERE !!!!!!!!!!
+import argparse
 
 
-labels="ABCD"
+parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+parser.add_argument('-i','--infile', type = str, nargs="*", default = None, required = True,
+                    help = 'path to ASCII files produced with the script rdnoise_analysis.py')
+parser.add_argument('-o','--outfile', type = str, default = None, required = False,
+                    help = 'save figure in this file')
 
+args = parser.parse_args()
 
-#for cam in ['b1','r1','z1'] :
-for cam in ['r3','z3'] :
- 
-    print(cam)
-    #filename="rdnoise-pairs-{}.txt".format(cam)
-    filename="levels-rms-{}-{}.txt".format(spectro,cam)
-    t=np.loadtxt(filename).T
+for filename in args.infile :
     
-    expnum=t[0]
-    mjd=t[1]
-    time=(mjd-mjd[0])*24.*60. # min
-    offset=t[2:6]
-    rdnoise=t[6:10]
-    overscan_rdnoise=t[10:14]
+    file=open(filename)
+    lines=file.readlines()
+    file.close()
+    keys=lines[0].replace("#","").split()
+    print(keys)
+    x=np.loadtxt(filename).T
+    print(x.shape)
+    t=dict()
+    for i in range(x.shape[0]) :
+        t[keys[i]]=x[i]
+    
+    nfiles=x.shape[1]
+    print("nfiles=",nfiles)
+    
     colors="bgrk"
-    #print(rdnoise)
-    #print(overscan_rdnoise)
+    
+    #print("overscan_rdnoise.shape=",overscan_rdnoise.shape)
     
     if 1 :
-        name="rdnoise-{}-{}".format(cam,spectro)
-        fig=plt.figure(name)
-        ax0=plt.subplot(2,1,1)
+        name=os.path.basename(filename).split(".")[0]
+        fig=plt.figure(name,figsize=(8,12))
+        ax0=plt.subplot(4,2,1)
         ax1=plt.subplot(2,1,2)
         
-        for a in range(4) :
+        i=1
+        for a,amp in enumerate(["A","B","C","D"]) :
             color=colors[a]
-            gain=gains[cam][a]
-            noise=rdnoise[a]
-            osnoise=overscan_rdnoise[a]
-            off=offset[a]
-            sn=saclay_rdnoise[cam][a]
-            x=time
-            ax0.plot(x,noise,"-",c=color,label=labels[a])
-            ax1.plot(x,off,"-",c=color)
-            label=None
-            if a==0 :
-                label=labels[a]+" overscan"
-            ax0.plot(x,osnoise,"--",c=color,label=label)
-            #ax0.plot(x,np.sqrt(osnoise**2+off),"--",c=color)
+            x=np.arange(nfiles)
+            ax=plt.subplot(4,2,i); i+=1
+            ax.plot(x,t["RMS_CCD_"+amp],"-",c=color,label="CCD")
+            ax.plot(x,t["RMS_COL_OVERSCAN_"+amp],"--",c=color,label="Overscan cols")
+            ax.plot(x,t["RMS_ROW_OVERSCAN_"+amp],":",c=color,label="Overscan rows")
+            ax.grid()
+            ax.legend(title="Amplifier {} rms".format(amp))
+            if amp=="D" : ax.set_xlabel("expnum - offset")
+            ax.set_ylabel("electrons/pixel")
             
-#,label="{} noise={:3.2f} e (with G={:3.2f} e/ADU)".format(labels[a-2],noise,gain))
-            print("{} {} Read noise={:3.2f} elec (Saclay: {:3.2f}) Overscan noise={:3.2f}; assuming G={:3.2f} elec/ADU".format(detectors[cam],labels[a],noise[-1],sn,osnoise[-1],gain))
-        #ax1.set_xlabel("exp. num")
-        ax1.set_xlabel("minutes")
-        ax0.set_ylim([2.,6.])
+            ax=plt.subplot(4,2,i); i+=1
+            #offset=np.min(t["MEAN_COL_OVERSCAN_"+amp])
+            offset=t["MEAN_COL_OVERSCAN_"+amp][-1]
+            ax.plot(x,t["MEAN_CCD_"+amp]-offset,"-",c=color,label="CCD")
+            ax.plot(x,t["MEAN_COL_OVERSCAN_"+amp]-offset,"--",c=color,label="Overscan cols")
+            ax.plot(x,t["MEAN_ROW_OVERSCAN_"+amp]-offset,":",c=color,label="Overscan rows")
+            ax.legend(title="Amplifier {} mean".format(amp))
+            ax.grid()
+            if amp=="D" : ax.set_xlabel("expnum - offset")
+
+            print("Amplifier {} rdnoise = {:3.2f} electrons/pixel".format(amp,np.mean(t["RMS_CCD_"+amp][-3:])))
+            
         
-        ax0.set_ylabel("read noise (electrons)")
-        ax0.grid()
-        ax0.legend(title="{} {} {}".format(title,cam,detectors[cam]),loc="upper right")
-        ax1.set_ylabel("mean level (electrons)")
-        ax1.set_ylim([0.,10.])
-        ax1.grid()
         fig.savefig(name+".png")
    
 plt.show()

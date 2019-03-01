@@ -5,59 +5,113 @@ import os
 import fitsio
 import numpy as np
 import argparse
+from desispec.preproc import _parse_sec_keyword
+from desispec.calibfinder import CalibFinder
+
+def mean_and_rms(vals,gain=1.) :
+    vals=vals.astype(float)*gain
+    mean=np.median(vals)
+    for i in range(2) :
+        ok=np.abs(vals-mean)<3.5*3. # we fix the cutoff at 3.5 sigma, assuming a fixed rdnoise value of 3 electrons for stability purpose (we know that the noise is between 2.5 and 4.5)
+        mean=np.mean(vals[ok])
+    rms=np.std(vals[ok])
+    return mean,rms
+
+def mean(vals,gain=1.) :
+    m,r = mean_and_rms(vals,gain)
+    return m
+
+def rms(vals,gain=1.) :
+    m,r = mean_and_rms(vals,gain)
+    return r
+
 
 parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
 parser.add_argument('ifile2', metavar='ifile', type=str, nargs='*',
                     help='input fits file(s)')
 parser.add_argument('-i','--ifile', type = str, default = None, required = False, nargs="*",
                     help = 'input fits file(s)')
-parser.add_argument('--hdu',type = str, default = 0, required = False, 
-                    help = 'header HDU (int or string)')
-parser.add_argument('-k','--keys',type = str, required = False, nargs="*" , help = 'dump keys from headers',default=[])
-parser.add_argument('-b','--bias',type = str, required = False, default=None , help = 'bias')
+parser.add_argument('--camera',type = str, default = 0, required = True, 
+                    help = 'camera b0,r7 ...')
+#parser.add_argument('-k','--keys',type = str, required = False, nargs="*" , help = 'dump keys from headers',default=[])
+parser.add_argument('-o','--outfile',type = str, required = True, help = 'output filename')
+parser.add_argument('--nobias', action='store_true', help="do not do a bias correction")
+
 
 
 args        = parser.parse_args()
-
-try :
-    hdu = int(args.hdu)
-except ValueError:
-    hdu = args.hdu
-if hdu is None :
-    hdu = 0
 
 filenames = args.ifile2
 if args.ifile is not None :
    filenames += args.ifile 
 
-if len(sys.argv)<2 :
+line=""
+for a,amp in enumerate(['A','B','C','D']) :
+    line+="MEAN_COL_OVERSCAN_{} RMS_COL_OVERSCAN_{} MEAN_ROW_OVERSCAN_{} RMS_ROW_OVERSCAN_{} MEAN_CCD_{} RMS_CCD_{} ".format(amp,amp,amp,amp,amp,amp) 
 
-    print(sys.argv[0],"image.fits")
 
-line="#"
-for k in args.keys :
-    line+=" "+k
-line+=" MEANA MEANB MEANC MEAND"
-line+=" RMSA RMSB RMSC RMSD"
-line+=" OSRMSA OSRMSB OSRMSC OSRMSD"
-line+=" (electrons)"
-print(line)
 
-bias=None
-if args.bias :
-    bias = fitsio.read(args.bias)
+#x = np.zeros((len(filenames),4*6)).astype(float)
 
-for filename in filenames :
-    #print('reading {} hdu={}'.format(filename,hdu))
+xx=[]
+for f,filename in enumerate(filenames) :
+    print('reading {} hdu={}'.format(filename,args.camera))
     try: 
         pheader=fitsio.read_header(filename)
-        img,header=fitsio.read(filename,hdu,header=True)
+        if pheader["flavor"].lower().strip() != "zero" :
+            print("ignore image with flavor='{}'".format(pheader["flavor"]))
+            continue
+                  
+        img,header=fitsio.read(filename,args.camera,header=True)
+        cfinder=CalibFinder([header,pheader])
+        
     except OSError :
         print("# failed to read",filename)
         continue
-    overscan_rdnoise=[]
-    central_rdnoise=[]
-    vals=[]
+        
+    img=img.astype(float)
+    sub = None
+    if not args.nobias :
+        if cfinder.haskey("BIAS") :
+            filename=cfinder.findfile("BIAS")
+            print("subtractiong bias",filename)
+            bias=fitsio.read(filename)
+            sub = img - bias
+    if sub is None :
+        sub = img # we don't do bias subtraction
+            
+        
+    i=0
+    x=np.zeros(4*6).astype(float)
+    
+    
+
+
+    for a,amp in enumerate(['A','B','C','D']) :
+        gain = 1.
+        if cfinder.haskey("GAIN"+amp) :
+            gain=cfinder.value("GAIN"+amp)
+            print("assuming gain for amp {} = {}".format(amp,gain))
+        x[i] = mean(img[_parse_sec_keyword(header["BIASSEC"+amp])],gain=gain); i+=1
+        x[i] = rms(sub[_parse_sec_keyword(header["BIASSEC"+amp])],gain=gain); i+=1
+        x[i] = mean(img[_parse_sec_keyword(header["ORSEC"+amp])],gain=gain); i+=1
+        x[i] = rms(sub[_parse_sec_keyword(header["ORSEC"+amp])],gain=gain); i+=1
+        x[i] = mean(img[_parse_sec_keyword(header["CCDSEC"+amp])],gain=gain); i+=1
+        x[i] = rms(sub[_parse_sec_keyword(header["CCDSEC"+amp])],gain=gain); i+=1
+        print("ccd rms {} = {:3.2f}".format(amp,x[a*4+5]))
+        sys.stdout.flush()
+    xx.append(x)
+xx=np.vstack(xx)
+
+np.savetxt(args.outfile,xx,header=line)
+print("wrote",args.outfile)
+
+"""
+
+    
+        #ii=_parse_sec_keyword(header['CCDSEC%d'%amp0])
+    sys.exit(12)
+    
     n0=img.shape[0]
     n1=img.shape[1]
     m=200
@@ -101,3 +155,4 @@ for filename in filenames :
     print(line)
     sys.stdout.flush()
 
+"""
