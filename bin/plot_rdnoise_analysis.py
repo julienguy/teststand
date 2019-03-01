@@ -11,6 +11,8 @@ parser.add_argument('-i','--infile', type = str, nargs="*", default = None, requ
                     help = 'path to ASCII files produced with the script rdnoise_analysis.py')
 parser.add_argument('-o','--outfile', type = str, default = None, required = False,
                     help = 'save figure in this file')
+parser.add_argument('-t','--title', type = str, default = None, required = False,
+                    help = 'Figure title')
 
 args = parser.parse_args()
 
@@ -39,6 +41,9 @@ for filename in args.infile :
         fig=plt.figure(name,figsize=(8,12))
         ax0=plt.subplot(4,2,1)
         ax1=plt.subplot(2,1,2)
+        if not args.title is None:
+            plt.suptitle(r'$\mathrm{'+args.title+'}$',fontsize=20)
+        plt.subplots_adjust(top=0.95)
         
         i=1
         for a,amp in enumerate(["A","B","C","D"]) :

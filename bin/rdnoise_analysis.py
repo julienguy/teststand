@@ -36,6 +36,7 @@ parser.add_argument('--camera',type = str, default = 0, required = True,
 #parser.add_argument('-k','--keys',type = str, required = False, nargs="*" , help = 'dump keys from headers',default=[])
 parser.add_argument('-o','--outfile',type = str, required = True, help = 'output filename')
 parser.add_argument('--nobias', action='store_true', help="do not do a bias correction")
+parser.add_argument('--gradient', action='store_true', help="use difference of adjacent pixels for rms")
 
 
 
@@ -81,8 +82,13 @@ for f,filename in enumerate(filenames) :
             sub = img - bias
     if sub is None :
         sub = img # we don't do bias subtraction
-            
-        
+           
+    rms_scale = 1.
+    if args.gradient :
+        tmp = sub[:,1:] - sub[:,:-1]
+        sub[:,1:] = tmp
+        sub[:,0]  = 0
+        rms_scale = 1./np.sqrt(2.)
     i=0
     x=np.zeros(1+4*6).astype(float)
     
@@ -95,11 +101,11 @@ for f,filename in enumerate(filenames) :
             gain=cfinder.value("GAIN"+amp)
             print("assuming gain for amp {} = {}".format(amp,gain))
         x[i] = mean(img[_parse_sec_keyword(header["BIASSEC"+amp])],gain=gain); i+=1
-        x[i] = rms(sub[_parse_sec_keyword(header["BIASSEC"+amp])],gain=gain); i+=1
+        x[i] = rms_scale*rms(sub[_parse_sec_keyword(header["BIASSEC"+amp])],gain=gain); i+=1
         x[i] = mean(img[_parse_sec_keyword(header["ORSEC"+amp])],gain=gain); i+=1
-        x[i] = rms(sub[_parse_sec_keyword(header["ORSEC"+amp])],gain=gain); i+=1
+        x[i] = rms_scale*rms(sub[_parse_sec_keyword(header["ORSEC"+amp])],gain=gain); i+=1
         x[i] = mean(img[_parse_sec_keyword(header["CCDSEC"+amp])],gain=gain); i+=1
-        x[i] = rms(sub[_parse_sec_keyword(header["CCDSEC"+amp])],gain=gain); i+=1
+        x[i] = rms_scale*rms(sub[_parse_sec_keyword(header["CCDSEC"+amp])],gain=gain); i+=1
         print("ccd rms {} = {:3.2f}".format(amp,x[1+a*4+5]))
         sys.stdout.flush()
     xx.append(x)
