@@ -45,7 +45,7 @@ filenames = args.ifile2
 if args.ifile is not None :
    filenames += args.ifile 
 
-line=""
+line="EXPID "
 for a,amp in enumerate(['A','B','C','D']) :
     line+="MEAN_COL_OVERSCAN_{} RMS_COL_OVERSCAN_{} MEAN_ROW_OVERSCAN_{} RMS_ROW_OVERSCAN_{} MEAN_CCD_{} RMS_CCD_{} ".format(amp,amp,amp,amp,amp,amp) 
 
@@ -69,6 +69,8 @@ for f,filename in enumerate(filenames) :
         print("# failed to read",filename)
         continue
         
+    expid=pheader["EXPID"]
+    
     img=img.astype(float)
     sub = None
     if not args.nobias :
@@ -82,9 +84,9 @@ for f,filename in enumerate(filenames) :
             
         
     i=0
-    x=np.zeros(4*6).astype(float)
+    x=np.zeros(1+4*6).astype(float)
     
-    
+    x[i] = expid ; i += 1
 
 
     for a,amp in enumerate(['A','B','C','D']) :
@@ -98,7 +100,7 @@ for f,filename in enumerate(filenames) :
         x[i] = rms(sub[_parse_sec_keyword(header["ORSEC"+amp])],gain=gain); i+=1
         x[i] = mean(img[_parse_sec_keyword(header["CCDSEC"+amp])],gain=gain); i+=1
         x[i] = rms(sub[_parse_sec_keyword(header["CCDSEC"+amp])],gain=gain); i+=1
-        print("ccd rms {} = {:3.2f}".format(amp,x[a*4+5]))
+        print("ccd rms {} = {:3.2f}".format(amp,x[1+a*4+5]))
         sys.stdout.flush()
     xx.append(x)
 xx=np.vstack(xx)

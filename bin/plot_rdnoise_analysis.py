@@ -43,14 +43,14 @@ for filename in args.infile :
         i=1
         for a,amp in enumerate(["A","B","C","D"]) :
             color=colors[a]
-            x=np.arange(nfiles)
+            x=t["EXPID"]
             ax=plt.subplot(4,2,i); i+=1
             ax.plot(x,t["RMS_CCD_"+amp],"-",c=color,label="CCD")
             ax.plot(x,t["RMS_COL_OVERSCAN_"+amp],"--",c=color,label="Overscan cols")
             ax.plot(x,t["RMS_ROW_OVERSCAN_"+amp],":",c=color,label="Overscan rows")
             ax.grid()
             ax.legend(title="Amplifier {} rms".format(amp))
-            if amp=="D" : ax.set_xlabel("expnum - offset")
+            if amp=="D" : ax.set_xlabel("expid")
             ax.set_ylabel("electrons/pixel")
             
             ax=plt.subplot(4,2,i); i+=1
@@ -61,7 +61,7 @@ for filename in args.infile :
             ax.plot(x,t["MEAN_ROW_OVERSCAN_"+amp]-offset,":",c=color,label="Overscan rows")
             ax.legend(title="Amplifier {} mean".format(amp))
             ax.grid()
-            if amp=="D" : ax.set_xlabel("expnum - offset")
+            if amp=="D" : ax.set_xlabel("expid")
 
             print("Amplifier {} rdnoise = {:3.2f} electrons/pixel".format(amp,np.mean(t["RMS_CCD_"+amp][-3:])))
             
