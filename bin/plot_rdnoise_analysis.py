@@ -63,7 +63,7 @@ for filename in args.infile :
             ax.grid()
             if amp=="D" : ax.set_xlabel("expid")
 
-            print("Amplifier {} rdnoise = {:3.2f} electrons/pixel".format(amp,np.mean(t["RMS_CCD_"+amp][-3:])))
+            print("|| Amplifier {} rdnoise || {:3.2f} electrons/pixel||".format(amp,np.mean(t["RMS_CCD_"+amp][-3:])))
             
         
         fig.savefig(name+".png")
