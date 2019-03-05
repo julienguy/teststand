@@ -37,6 +37,7 @@ parser.add_argument('--camera',type = str, default = 0, required = True,
 parser.add_argument('-o','--outfile',type = str, required = True, help = 'output filename')
 parser.add_argument('--nobias', action='store_true', help="do not do a bias correction")
 parser.add_argument('--gradient', action='store_true', help="use difference of adjacent pixels for rms")
+parser.add_argument('--flavor', type=str,required=False,default="zero", help="flavor")
 
 
 
@@ -59,7 +60,7 @@ for f,filename in enumerate(filenames) :
     print('reading {} hdu={}'.format(filename,args.camera))
     try: 
         pheader=fitsio.read_header(filename)
-        if pheader["flavor"].lower().strip() != "zero" :
+        if pheader["flavor"].lower().strip() != args.flavor :
             print("ignore image with flavor='{}'".format(pheader["flavor"]))
             continue
                   
