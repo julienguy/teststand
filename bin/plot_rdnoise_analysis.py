@@ -70,6 +70,7 @@ for filename in args.infile :
 
             print("|| Amplifier {} rdnoise || {:3.2f} electrons/pixel||".format(amp,np.mean(t["RMS_CCD_"+amp][-3:])))
             
+
         if args.outfile is None :
             args.outfile = name+".png"
         print("saving image as",args.outfile)
