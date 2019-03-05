@@ -70,8 +70,9 @@ for filename in args.infile :
 
             print("|| Amplifier {} rdnoise || {:3.2f} electrons/pixel||".format(amp,np.mean(t["RMS_CCD_"+amp][-3:])))
             
-        
-        fig.savefig(name+".png")
+        if args.outfile is None:
+            args.outfile = name+'.png'
+        fig.savefig(args.outfile)
    
 plt.show()
 
