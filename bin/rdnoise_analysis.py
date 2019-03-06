@@ -78,7 +78,7 @@ for f,filename in enumerate(filenames) :
     if not args.nobias :
         if cfinder.haskey("BIAS") :
             filename=cfinder.findfile("BIAS")
-            print("subtractiong bias",filename)
+            print("subtracting bias",filename)
             bias=fitsio.read(filename)
             sub = img - bias
     if sub is None :
