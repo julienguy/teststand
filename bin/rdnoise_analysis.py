@@ -7,6 +7,7 @@ import numpy as np
 import argparse
 from desispec.preproc import _parse_sec_keyword
 from desispec.calibfinder import CalibFinder
+from astropy.time import Time
 
 def mean_and_rms(vals,gain=1.) :
     vals=vals.astype(float)*gain
@@ -47,7 +48,7 @@ filenames = args.ifile2
 if args.ifile is not None :
    filenames += args.ifile 
 
-line="EXPID "
+line="EXPID MJD-OBS DATE-OBS "
 for a,amp in enumerate(['A','B','C','D']) :
     line+="MEAN_COL_OVERSCAN_{} RMS_COL_OVERSCAN_{} MEAN_ROW_OVERSCAN_{} RMS_ROW_OVERSCAN_{} MEAN_CCD_{} RMS_CCD_{} ".format(amp,amp,amp,amp,amp,amp) 
 
@@ -71,7 +72,9 @@ for f,filename in enumerate(filenames) :
         print("# failed to read",filename)
         continue
         
-    expid=pheader["EXPID"]
+    expid = pheader["EXPID"]
+    mjdobs = pheader["MJD-OBS"]
+    dateobs = Time(pheader["DATE-OBS"]).mjd
     
     img=img.astype(float)
     sub = None
@@ -91,10 +94,11 @@ for f,filename in enumerate(filenames) :
         sub[:,0]  = 0
         rms_scale = 1./np.sqrt(2.)
     i=0
-    x=np.zeros(1+4*6).astype(float)
+    x=np.zeros(3+4*6).astype(float)
     
     x[i] = expid ; i += 1
-
+    x[i] = mjdobs ; i += 1
+    x[i] = dateobs ; i += 1
 
     for a,amp in enumerate(['A','B','C','D']) :
         gain = 1.
