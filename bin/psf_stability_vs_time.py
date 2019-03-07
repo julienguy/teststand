@@ -14,9 +14,14 @@ from desispec.io.xytraceset import read_xytraceset
 
 def preproc(indir,outdir,cam):
 
+
     cmd = 'desi_preproc'
     cmd += ' -i {}'.format(indir)
-    cmd += ' --cameras {}'.format(cam)
+    cmd += ' --cameras '
+    for i,tc in enumerate(cam):
+        cmd += tc
+        if i!=len(cam)-1:
+            cmd += ','
     cmd += ' --outdir {}'.format(outdir)
     print(cmd)
     subprocess.call(cmd,shell=True)

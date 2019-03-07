@@ -51,7 +51,6 @@ for filename in args.infile :
         for a,amp in enumerate(["A","B","C","D"]) :
             color=colors[a]
             x = t[args.x_axis]
-            print(x)
             ax=plt.subplot(4,2,i); i+=1
             ax.plot(x,t["RMS_CCD_"+amp],"-",c=color,label="CCD")
             ax.plot(x,t["RMS_COL_OVERSCAN_"+amp],"--",c=color,label="Overscan cols")
