@@ -53,6 +53,18 @@ def psf_fit(idx,outdir,cam):
     subprocess.call(cmd,shell=True)
 
     return
+def mean_psf(idxs,outdir,cam):
+
+    cmd = 'specex_mean_psf.py'
+    cmd += ' -i'
+    for i in idxs:
+        #if not os.path.isfile('{}/psf-{}-{}.fits'.format(outdir,cam,str(i).zfill(8))): continue
+        cmd += ' {}/psf-{}-{}.fits'.format(outdir,cam,str(i).zfill(8))
+    cmd += ' -o {}/psf-{}-average.fits'.format(outdir,cam)
+    print(cmd)
+    subprocess.call(cmd, shell=True)
+
+    return
 
 def plot_qproc_traces(idx,outdir,cam):
 
@@ -73,7 +85,8 @@ def plot_bundle(outdir,cam,idx):
     cmd = 'plot_psf_bundle.py'
     for c in cam:
         cmd += ' --{}-path {}/preproc-{}-{}.fits'.format(c[0],outdir,c,idx)
-        cmd += ' --{}-psf-path {}/psf-{}-{}.fits'.format(c[0],outdir,c,idx)
+        #cmd += ' --{}-psf-path {}/psf-{}-{}.fits'.format(c[0],outdir,c,idx)
+        cmd += ' --{}-psf-path {}/psf-{}-{}.fits'.format(c[0],outdir,c,'average')
 
     print(cmd)
     subprocess.call(cmd,shell=True)
@@ -188,6 +201,9 @@ def main():
     parser.add_argument('--run-psffit', action='store_true',
         help="Run psf-fit")
 
+    parser.add_argument('--mean-psf', action='store_true',
+        help="Compute the mean PSF")
+
     parser.add_argument('--plot', action='store_true',
         help="Plot PSF vs. time")
 
@@ -282,6 +298,16 @@ def main():
                 idx = str(i).zfill(8)
                 psf_fit(idx,outdir,tcam)
 
+    ###
+    if args.mean_psf:
+        for tcam in cam:
+            idxs = []
+            for i in exps.keys():
+                if exps[i]['EXPTIME']!=getattr(args,'{}_exp_time'.format(tcam[0])):
+                    continue
+                idxs += [i]
+            mean_psf(idxs,outdir,tcam)
+            print('\n\n\n\n')
     ###
     if args.plot:
         for tcam in cam:
