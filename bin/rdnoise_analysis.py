@@ -37,6 +37,7 @@ parser.add_argument('--camera',type = str, default = 0, required = True,
 #parser.add_argument('-k','--keys',type = str, required = False, nargs="*" , help = 'dump keys from headers',default=[])
 parser.add_argument('-o','--outfile',type = str, required = True, help = 'output filename')
 parser.add_argument('--nobias', action='store_true', help="do not do a bias correction")
+parser.add_argument('--bias', type=str, required=False,default=None,help="use this bias instead of the default one")
 parser.add_argument('--gradient', action='store_true', help="use difference of adjacent pixels for rms")
 parser.add_argument('--flavor', type=str,required=False,default="zero", help="flavor")
 
@@ -79,8 +80,10 @@ for f,filename in enumerate(filenames) :
     img=img.astype(float)
     sub = None
     if not args.nobias :
-        if cfinder.haskey("BIAS") :
+        filename=args.bias
+        if filename is None and cfinder.haskey("BIAS") :
             filename=cfinder.findfile("BIAS")
+        if filename is not None :
             print("subtracting bias",filename)
             bias=fitsio.read(filename)
             sub = img - bias
@@ -104,14 +107,13 @@ for f,filename in enumerate(filenames) :
         gain = 1.
         if cfinder.haskey("GAIN"+amp) :
             gain=cfinder.value("GAIN"+amp)
-            print("assuming gain for amp {} = {}".format(amp,gain))
         x[i] = mean(img[_parse_sec_keyword(header["BIASSEC"+amp])],gain=gain); i+=1
         x[i] = rms_scale*rms(sub[_parse_sec_keyword(header["BIASSEC"+amp])],gain=gain); i+=1
         x[i] = mean(img[_parse_sec_keyword(header["ORSEC"+amp])],gain=gain); i+=1
         x[i] = rms_scale*rms(sub[_parse_sec_keyword(header["ORSEC"+amp])],gain=gain); i+=1
         x[i] = mean(img[_parse_sec_keyword(header["CCDSEC"+amp])],gain=gain); i+=1
         x[i] = rms_scale*rms(sub[_parse_sec_keyword(header["CCDSEC"+amp])],gain=gain); i+=1
-        print("ccd rms {} = {:3.2f}".format(amp,x[1+a*4+5]))
+        print("assuming gain= {:3.2f} for amp {}, ccd rms= {:3.2f}".format(gain,amp,x[i-1]))
         sys.stdout.flush()
     xx.append(x)
 xx=np.vstack(xx)
