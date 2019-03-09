@@ -61,8 +61,8 @@ for filename in args.infile :
             ax.set_ylabel("electrons/pixel")
             
             ax=plt.subplot(4,2,i); i+=1
-            #offset=np.min(t["MEAN_COL_OVERSCAN_"+amp])
-            offset=t["MEAN_COL_OVERSCAN_"+amp][-1]
+            #offset=t["MEAN_COL_OVERSCAN_"+amp][-1]
+            offset=0
             ax.plot(x,t["MEAN_CCD_"+amp]-offset,"-",c=color,label="CCD")
             ax.plot(x,t["MEAN_COL_OVERSCAN_"+amp]-offset,"--",c=color,label="Overscan cols")
             ax.plot(x,t["MEAN_ROW_OVERSCAN_"+amp]-offset,":",c=color,label="Overscan rows")
