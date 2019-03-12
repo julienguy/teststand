@@ -32,6 +32,10 @@ parser.add_argument('--width', type=int, default=3, required=False,
                     help = 'extraction band width')
 parser.add_argument('--dist', type=float, default=7., required=False,
                     help = 'distance of band center to fiber trace')
+parser.add_argument('--threshold', type=float, default=1000., required=False,
+                    help = 'min. flux per pixel to compute frac')
+parser.add_argument('--nbins', type=int, default=20, required=False,
+                    help = 'number of wavelength bins')
 
 log         = get_logger()
 args        = parser.parse_args()
@@ -59,7 +63,7 @@ qframe_left  = qproc_boxcar_extraction(tset,image,width=args.width, fibermap=fib
 tset.x_vs_wave_traceset._coeff[:,0] += args.dist
 
 
-bins=np.linspace(np.min(qframe.wave),np.max(qframe.wave),10)
+bins=np.linspace(np.min(qframe.wave),np.max(qframe.wave),args.nbins+1)
 
 a=np.zeros(bins.size-1)
 b=np.zeros(bins.size-1)
@@ -69,13 +73,14 @@ if fibers is None :
     fibers = qframe.fibermap["FIBER"]
 for fiber in fibers :
     i=np.where(qframe.fibermap["FIBER"]==fiber)[0]
-    tmp,junk =  np.histogram(qframe.wave[i],bins=bins,weights=qframe_right.ivar[i]*qframe.flux[i]**2)
+    
+    tmp,junk =  np.histogram(qframe.wave[i],bins=bins,weights=qframe_right.ivar[i]*(qframe.flux[i]>args.threshold)*qframe.flux[i]**2)
     a += tmp
-    tmp,junk =  np.histogram(qframe.wave[i],bins=bins,weights=qframe_right.ivar[i]*qframe.flux[i]*qframe_right.flux[i])
+    tmp,junk =  np.histogram(qframe.wave[i],bins=bins,weights=qframe_right.ivar[i]*(qframe.flux[i]>args.threshold)*qframe.flux[i]*qframe_right.flux[i])
     b += tmp
-    tmp,junk =  np.histogram(qframe.wave[i],bins=bins,weights=qframe_left.ivar[i]*qframe.flux[i]**2)
+    tmp,junk =  np.histogram(qframe.wave[i],bins=bins,weights=qframe_left.ivar[i]*(qframe.flux[i]>args.threshold)*qframe.flux[i]**2)
     a += tmp
-    tmp,junk =  np.histogram(qframe.wave[i],bins=bins,weights=qframe_left.ivar[i]*qframe.flux[i]*qframe_left.flux[i])
+    tmp,junk =  np.histogram(qframe.wave[i],bins=bins,weights=qframe_left.ivar[i]*(qframe.flux[i]>args.threshold)*qframe.flux[i]*qframe_left.flux[i])
     b += tmp
     
 ii=np.where(a>0)[0]
