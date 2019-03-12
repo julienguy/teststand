@@ -7,6 +7,7 @@ import numpy as np
 import argparse
 from desispec.preproc import _parse_sec_keyword
 from desispec.calibfinder import CalibFinder
+from astropy.time import Time
 
 def mean_and_rms(vals,gain=1.) :
     vals=vals.astype(float)*gain
@@ -36,7 +37,9 @@ parser.add_argument('--camera',type = str, default = 0, required = True,
 #parser.add_argument('-k','--keys',type = str, required = False, nargs="*" , help = 'dump keys from headers',default=[])
 parser.add_argument('-o','--outfile',type = str, required = True, help = 'output filename')
 parser.add_argument('--nobias', action='store_true', help="do not do a bias correction")
+parser.add_argument('--bias', type=str, required=False,default=None,help="use this bias instead of the default one")
 parser.add_argument('--gradient', action='store_true', help="use difference of adjacent pixels for rms")
+parser.add_argument('--flavor', type=str,required=False,default="zero", help="flavor")
 
 
 
@@ -46,7 +49,7 @@ filenames = args.ifile2
 if args.ifile is not None :
    filenames += args.ifile 
 
-line="EXPID "
+line="EXPID MJD-OBS DATE-OBS "
 for a,amp in enumerate(['A','B','C','D']) :
     line+="MEAN_COL_OVERSCAN_{} RMS_COL_OVERSCAN_{} MEAN_ROW_OVERSCAN_{} RMS_ROW_OVERSCAN_{} MEAN_CCD_{} RMS_CCD_{} ".format(amp,amp,amp,amp,amp,amp) 
 
@@ -59,7 +62,7 @@ for f,filename in enumerate(filenames) :
     print('reading {} hdu={}'.format(filename,args.camera))
     try: 
         pheader=fitsio.read_header(filename)
-        if pheader["flavor"].lower().strip() != "zero" :
+        if pheader["flavor"].lower().strip() != args.flavor :
             print("ignore image with flavor='{}'".format(pheader["flavor"]))
             continue
                   
@@ -70,14 +73,18 @@ for f,filename in enumerate(filenames) :
         print("# failed to read",filename)
         continue
         
-    expid=pheader["EXPID"]
+    expid = pheader["EXPID"]
+    mjdobs = pheader["MJD-OBS"]
+    dateobs = Time(pheader["DATE-OBS"]).mjd
     
     img=img.astype(float)
     sub = None
     if not args.nobias :
-        if cfinder.haskey("BIAS") :
+        filename=args.bias
+        if filename is None and cfinder.haskey("BIAS") :
             filename=cfinder.findfile("BIAS")
-            print("subtractiong bias",filename)
+        if filename is not None :
+            print("subtracting bias",filename)
             bias=fitsio.read(filename)
             sub = img - bias
     if sub is None :
@@ -90,23 +97,23 @@ for f,filename in enumerate(filenames) :
         sub[:,0]  = 0
         rms_scale = 1./np.sqrt(2.)
     i=0
-    x=np.zeros(1+4*6).astype(float)
+    x=np.zeros(3+4*6).astype(float)
     
     x[i] = expid ; i += 1
-
+    x[i] = mjdobs ; i += 1
+    x[i] = dateobs ; i += 1
 
     for a,amp in enumerate(['A','B','C','D']) :
         gain = 1.
         if cfinder.haskey("GAIN"+amp) :
             gain=cfinder.value("GAIN"+amp)
-            print("assuming gain for amp {} = {}".format(amp,gain))
         x[i] = mean(img[_parse_sec_keyword(header["BIASSEC"+amp])],gain=gain); i+=1
         x[i] = rms_scale*rms(sub[_parse_sec_keyword(header["BIASSEC"+amp])],gain=gain); i+=1
         x[i] = mean(img[_parse_sec_keyword(header["ORSEC"+amp])],gain=gain); i+=1
         x[i] = rms_scale*rms(sub[_parse_sec_keyword(header["ORSEC"+amp])],gain=gain); i+=1
         x[i] = mean(img[_parse_sec_keyword(header["CCDSEC"+amp])],gain=gain); i+=1
         x[i] = rms_scale*rms(sub[_parse_sec_keyword(header["CCDSEC"+amp])],gain=gain); i+=1
-        print("ccd rms {} = {:3.2f}".format(amp,x[1+a*4+5]))
+        print("assuming gain= {:3.2f} for amp {}, ccd rms= {:3.2f}".format(gain,amp,x[i-1]))
         sys.stdout.flush()
     xx.append(x)
 xx=np.vstack(xx)

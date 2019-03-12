@@ -26,6 +26,7 @@ parser.add_argument('-z','--zemax', type = str, default = None, required = False
 parser.add_argument('--labels', type = str, default = None, required = False, nargs='*')
 parser.add_argument('--colors', type = str, default = None, required = False, nargs='*')
 parser.add_argument('--mean',action='store_true')
+parser.add_argument('--only-mean',action='store_true')
 parser.add_argument('--legend',action='store_true')
 parser.add_argument('--title',type = str, default = None, required = False, help="figure title")
 parser.add_argument('-o','--output',type = str, default = None, required = False, help="filename to save figure as png")
@@ -68,7 +69,8 @@ for filename,label,color in zip(args.input,labels,colors) :
         rms=np.std(tmp[:,1:],axis=1)
         maxres=np.max(tmp[:,1:],axis=1)
         minres=np.min(tmp[:,1:],axis=1)
-        plt.fill_between(wave,minres,maxres,color=color,alpha=0.4)
+        if not args.only_mean:
+            plt.fill_between(wave,minres,maxres,color=color,alpha=0.4)
         plt.plot(wave,mres,label=label,color=color)
         
     else :
@@ -96,7 +98,7 @@ plt.ylim([1000,6000])
 plt.grid()
 if args.legend :
     plt.legend(loc="upper left",fontsize="small")
-plt.xlabel(r"Wavelength $\lambda$ ( $\mathrm{\AA{}}$ )")
+plt.xlabel(r"$\mathrm{Wavelength} \, \lambda \, [\mathrm{\AA{}}]$")
 plt.ylabel(r"Spectral Resolution $R=\lambda/FWHM_{\lambda}$")
 
 if args.output :
