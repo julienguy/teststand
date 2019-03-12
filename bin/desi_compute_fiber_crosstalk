@@ -26,16 +26,20 @@ parser.add_argument('-o','--outfile', type = str, default = None, required = Fal
                     help = 'path of output frame file')
 parser.add_argument('--fibers', type=str, default = None, required = False,
                     help = 'defines from_to which fiber to work on. (ex: --fibers=50:60,4 means that only fibers 4, and fibers from 50 to 60 (excluded) will be extracted)')
-parser.add_argument('--show', action='store_true',
+parser.add_argument('--plot', action='store_true',
                     help = 'plot result')
 parser.add_argument('--width', type=int, default=3, required=False,
                     help = 'extraction band width')
 parser.add_argument('--dist', type=float, default=7., required=False,
                     help = 'distance of band center to fiber trace')
-parser.add_argument('--threshold', type=float, default=1000., required=False,
+parser.add_argument('--dist2', type=float, default=14., required=False,
+                    help = 'distance of second band center to fiber trace, subtracted to remove effect of residual signal')
+parser.add_argument('--threshold', type=float, default=2000., required=False,
                     help = 'min. flux per pixel to compute frac')
-parser.add_argument('--nbins', type=int, default=20, required=False,
+parser.add_argument('--nbins', type=int, default=10, required=False,
                     help = 'number of wavelength bins')
+parser.add_argument('--nosub', action = 'store_true',
+                    help = 'do not do a side band subtraction')
 
 log         = get_logger()
 args        = parser.parse_args()
@@ -53,15 +57,26 @@ tset    = read_xytraceset(args.psf)
 fibermap = None
 qframe  = qproc_boxcar_extraction(tset,image,width=7, fibermap=fibermap)
 
+print("tset.x_vs_wave shape=",tset.x_vs_wave_traceset._coeff.shape)
 # alter tset here ....
 #qframe_left
 #qframe_right
-tset.x_vs_wave_traceset._coeff[:,0] += args.dist
+saved_coeff0 = tset.x_vs_wave_traceset._coeff[:,0]+0. 
+tset.x_vs_wave_traceset._coeff[:,0] = saved_coeff0 + args.dist
 qframe_right  = qproc_boxcar_extraction(tset,image,width=args.width, fibermap=fibermap)
-tset.x_vs_wave_traceset._coeff[:,0] -= 2*args.dist
+if not args.nosub :
+    tset.x_vs_wave_traceset._coeff[:,0] = saved_coeff0 + args.dist2
+    tmp = qproc_boxcar_extraction(tset,image,width=args.width, fibermap=fibermap)
+    qframe_right.flux -= tmp.flux
+tset.x_vs_wave_traceset._coeff[:,0] = saved_coeff0 - args.dist
 qframe_left  = qproc_boxcar_extraction(tset,image,width=args.width, fibermap=fibermap)
-tset.x_vs_wave_traceset._coeff[:,0] += args.dist
 
+if not args.nosub :
+    tset.x_vs_wave_traceset._coeff[:,0] = saved_coeff0 - args.dist2
+    tmp = qproc_boxcar_extraction(tset,image,width=args.width, fibermap=fibermap)
+    qframe_left.flux -= tmp.flux
+
+tset.x_vs_wave_traceset._coeff[:,0] = saved_coeff0
 
 bins=np.linspace(np.min(qframe.wave),np.max(qframe.wave),args.nbins+1)
 
@@ -74,13 +89,13 @@ if fibers is None :
 for fiber in fibers :
     i=np.where(qframe.fibermap["FIBER"]==fiber)[0]
     
-    tmp,junk =  np.histogram(qframe.wave[i],bins=bins,weights=qframe_right.ivar[i]*(qframe.flux[i]>args.threshold)*qframe.flux[i]**2)
+    tmp,junk =  np.histogram(qframe.wave[i],bins=bins,weights=qframe_right.ivar[i]*(qframe.ivar[i]>0)*(qframe.flux[i]>args.threshold)*qframe.flux[i]**2)
     a += tmp
-    tmp,junk =  np.histogram(qframe.wave[i],bins=bins,weights=qframe_right.ivar[i]*(qframe.flux[i]>args.threshold)*qframe.flux[i]*qframe_right.flux[i])
+    tmp,junk =  np.histogram(qframe.wave[i],bins=bins,weights=qframe_right.ivar[i]*(qframe.ivar[i]>0)*(qframe.flux[i]>args.threshold)*qframe.flux[i]*qframe_right.flux[i])
     b += tmp
-    tmp,junk =  np.histogram(qframe.wave[i],bins=bins,weights=qframe_left.ivar[i]*(qframe.flux[i]>args.threshold)*qframe.flux[i]**2)
+    tmp,junk =  np.histogram(qframe.wave[i],bins=bins,weights=qframe_left.ivar[i]*(qframe.ivar[i]>0)*(qframe.flux[i]>args.threshold)*qframe.flux[i]**2)
     a += tmp
-    tmp,junk =  np.histogram(qframe.wave[i],bins=bins,weights=qframe_left.ivar[i]*(qframe.flux[i]>args.threshold)*qframe.flux[i]*qframe_left.flux[i])
+    tmp,junk =  np.histogram(qframe.wave[i],bins=bins,weights=qframe_left.ivar[i]*(qframe.ivar[i]>0)*(qframe.flux[i]>args.threshold)*qframe.flux[i]*qframe_left.flux[i])
     b += tmp
     
 ii=np.where(a>0)[0]
@@ -100,7 +115,7 @@ if args.outfile is not None :
     np.savetxt(args.outfile,tmp,header="wavelength crosstalk error")
     log.info("wrote {}".format(args.outfile))
 
-if args.show :
+if args.plot :
     plt.errorbar(wave[i],frac[i],err[i],fmt="o")
     plt.xlabel("wavelength [A]")
     plt.ylabel("crosstalk")
