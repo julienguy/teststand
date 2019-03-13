@@ -111,8 +111,8 @@ for f,filename in enumerate(filenames) :
         x[i] = rms_scale*rms(sub[_parse_sec_keyword(header["BIASSEC"+amp])],gain=gain); i+=1
         x[i] = mean(img[_parse_sec_keyword(header["ORSEC"+amp])],gain=gain); i+=1
         x[i] = rms_scale*rms(sub[_parse_sec_keyword(header["ORSEC"+amp])],gain=gain); i+=1
-        x[i] = mean(img[_parse_sec_keyword(header["CCDSEC"+amp])],gain=gain); i+=1
-        x[i] = rms_scale*rms(sub[_parse_sec_keyword(header["CCDSEC"+amp])],gain=gain); i+=1
+        x[i] = mean(img[_parse_sec_keyword(header["DATASEC"+amp])],gain=gain); i+=1
+        x[i] = rms_scale*rms(sub[_parse_sec_keyword(header["DATASEC"+amp])],gain=gain); i+=1
         print("assuming gain= {:3.2f} for amp {}, ccd rms= {:3.2f}".format(gain,amp,x[i-1]))
         sys.stdout.flush()
     xx.append(x)
