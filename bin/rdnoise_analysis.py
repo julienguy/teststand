@@ -35,7 +35,7 @@ parser.add_argument('-i','--ifile', type = str, default = None, required = False
 parser.add_argument('--camera',type = str, default = 0, required = True, 
                     help = 'camera b0,r7 ...')
 #parser.add_argument('-k','--keys',type = str, required = False, nargs="*" , help = 'dump keys from headers',default=[])
-parser.add_argument('-o','--outfile',type = str, required = True, help = 'output filename')
+parser.add_argument('-o','--outfile',type = str, default = None, required = False, help = 'output filename')
 parser.add_argument('--nobias', action='store_true', help="do not do a bias correction")
 parser.add_argument('--bias', type=str, required=False,default=None,help="use this bias instead of the default one")
 parser.add_argument('--gradient', action='store_true', help="use difference of adjacent pixels for rms")
@@ -136,58 +136,10 @@ for f,filename in enumerate(filenames) :
         print("assuming gain= {:3.2f} for amp {}, ccd rms= {:3.2f}".format(gain,amp,x[i-1]))
         sys.stdout.flush()
     xx.append(x)
-xx=np.vstack(xx)
 
-np.savetxt(args.outfile,xx,header=line)
-print("wrote",args.outfile)
-
-"""
-
-    
-        #ii=_parse_sec_keyword(header['CCDSEC%d'%amp0])
-    sys.exit(12)
-    
-    n0=img.shape[0]
-    n1=img.shape[1]
-    m=200
-    #print("stamp size={}x{}".format(n0//2-2*m,n1//2-2*m))
-    if bias is not None :
-        img = img.astype(float)
-        img -= bias
-    for amp in 'ABCD' :
-        if amp=='A' :
-            quad=img[m:n0//2-m,m:n1//2-m]
-        elif amp=='B' :
-            quad=img[m:n0//2-m,n1//2+m:-m]
-        elif amp=='C':
-            quad=img[n0//2+m:-m,m:n1//2-m]
-        elif amp=='D' :
-            quad=img[n0//2+m:-m,n1//2+m:-m]
-        shape=quad.shape
-        quad=quad.astype(float)
-        med=np.median(quad)
-        mean=np.mean(quad[np.abs(quad-med)<20])
-        vals.append(mean)
-        overscan_rdnoise.append(header["OBSRDN"+amp])
-        rms=np.std(quad[np.abs(quad-mean)<20])
-        central_rdnoise.append(rms)
+if args.outfile is not None :
+    xx=np.vstack(xx)
+    np.savetxt(args.outfile,xx,header=line)
+    print("wrote",args.outfile)
 
 
-    line=""
-    for k in args.keys :
-        if k in pheader :
-            line += " "+str(pheader[k])
-        elif k in header :
-            line += " "+str(header[k])
-        else :
-            line += " 0"
-    for i in range(4) :
-        line+=" {}".format(vals[i])
-    for i in range(4) :
-        line+=" {}".format(central_rdnoise[i])
-    for i in range(4) :
-        line+=" {}".format(overscan_rdnoise[i])
-    print(line)
-    sys.stdout.flush()
-
-"""
