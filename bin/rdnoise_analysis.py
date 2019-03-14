@@ -62,26 +62,43 @@ for f,filename in enumerate(filenames) :
     print('reading {} hdu={}'.format(filename,args.camera))
     try: 
         pheader=fitsio.read_header(filename)
-        if pheader["flavor"].lower().strip() != args.flavor :
-            print("ignore image with flavor='{}'".format(pheader["flavor"]))
-            continue
-                  
-        img,header=fitsio.read(filename,args.camera,header=True)
-        cfinder=CalibFinder([header,pheader])
+        if "flavor" in pheader :
+            if pheader["flavor"].lower().strip() != args.flavor :
+                print("ignore image with flavor='{}'".format(pheader["flavor"]))
+                continue
+        else :
+            print("warning: no flavor keyword in header")
         
+        img,header=fitsio.read(filename,args.camera,header=True)
+        try :
+            cfinder=CalibFinder([header,pheader])
+        except :
+            print("warning: could not find calib")
+            cfinder=None
+    
     except OSError :
         print("# failed to read",filename)
         continue
-        
-    expid = pheader["EXPID"]
-    mjdobs = pheader["MJD-OBS"]
-    dateobs = Time(pheader["DATE-OBS"]).mjd
-    
+    if "EXPID" in pheader :
+        expid = pheader["EXPID"]
+    else :
+        expid = 0.
+    if "MJD-OBS" in pheader :
+        mjdobs = pheader["MJD-OBS"]
+    else :
+        mjdobs = 0.
+    if "DATE-OBS" in pheader :
+        try : 
+            dateobs = Time(pheader["DATE-OBS"]).mjd
+        except :
+            dateobs = 0.
+    else :
+        dateobs = 0.
     img=img.astype(float)
     sub = None
     if not args.nobias :
         filename=args.bias
-        if filename is None and cfinder.haskey("BIAS") :
+        if filename is None and cfinder is not None and cfinder.haskey("BIAS") :
             filename=cfinder.findfile("BIAS")
         if filename is not None :
             print("subtracting bias",filename)
@@ -105,12 +122,15 @@ for f,filename in enumerate(filenames) :
 
     for a,amp in enumerate(['A','B','C','D']) :
         gain = 1.
-        if cfinder.haskey("GAIN"+amp) :
+        if cfinder is not None and cfinder.haskey("GAIN"+amp) :
             gain=cfinder.value("GAIN"+amp)
         x[i] = mean(img[_parse_sec_keyword(header["BIASSEC"+amp])],gain=gain); i+=1
         x[i] = rms_scale*rms(sub[_parse_sec_keyword(header["BIASSEC"+amp])],gain=gain); i+=1
-        x[i] = mean(img[_parse_sec_keyword(header["ORSEC"+amp])],gain=gain); i+=1
-        x[i] = rms_scale*rms(sub[_parse_sec_keyword(header["ORSEC"+amp])],gain=gain); i+=1
+        if "ORSEC"+amp in header :
+            x[i] = mean(img[_parse_sec_keyword(header["ORSEC"+amp])],gain=gain); i+=1
+            x[i] = rms_scale*rms(sub[_parse_sec_keyword(header["ORSEC"+amp])],gain=gain); i+=1
+        else :
+            i += 2
         x[i] = mean(img[_parse_sec_keyword(header["DATASEC"+amp])],gain=gain); i+=1
         x[i] = rms_scale*rms(sub[_parse_sec_keyword(header["DATASEC"+amp])],gain=gain); i+=1
         print("assuming gain= {:3.2f} for amp {}, ccd rms= {:3.2f}".format(gain,amp,x[i-1]))
