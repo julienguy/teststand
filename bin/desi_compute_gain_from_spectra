@@ -163,7 +163,7 @@ for amp  in args.amplifiers :
     for exptime in qframes.keys() :
         nexp=len(qframes[exptime])
         if nexp<2 : continue
-        log.info("studying amplifier %s exptime=%d nexp=%d"%(amp,exptime,nexp))
+        log.debug("studying amplifier %s exptime=%d nexp=%d"%(amp,exptime,nexp))
     
         flux=[]
         for qframe in qframes[exptime] :
@@ -221,9 +221,8 @@ for amp  in args.amplifiers :
     c=np.polyfit(x,y,args.deg)
     pol=np.poly1d(c)
     gain=1./c[-2]
-    print("coefficients=",c)
-    log.info("{}-{} gain = {:4.3f} e/ADU".format(camera,amp,gain))
-    
+    #log.info("{}-{} gain = {:4.3f} e/ADU".format(camera,amp,gain))
+    print("|| {}-{} || {:4.3f} e/ADU ||".format(camera,amp,gain))
     
 
     #chi2=np.sum((y-y0-mypol(x,coef))**2/err**2)
