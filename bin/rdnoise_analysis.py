@@ -72,8 +72,8 @@ for f,filename in enumerate(filenames) :
         img,header=fitsio.read(filename,args.camera,header=True)
         try :
             cfinder=CalibFinder([header,pheader])
-        except :
-            print("warning: could not find calib")
+        except Exception as e:
+            print("warning: could not find calib, error message='{}'".format(e))
             cfinder=None
     
     except OSError :
@@ -81,6 +81,8 @@ for f,filename in enumerate(filenames) :
         continue
     if "EXPID" in pheader :
         expid = pheader["EXPID"]
+    elif "EXPNUM" in pheader : # winlight version ...
+        expid = pheader["EXPNUM"]
     else :
         expid = 0.
     if "MJD-OBS" in pheader :
