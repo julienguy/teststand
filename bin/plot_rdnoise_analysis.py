@@ -15,10 +15,13 @@ parser.add_argument('-t','--title', type = str, default = None, required = False
                     help = 'Figure title')
 parser.add_argument('--x-axis',type=str, default='EXPID', required=False, 
     help = 'x-axis, can be EXPID, MJD-OBS, DATE-OBS')
+parser.add_argument('--batch',action='store_true',help="no plt.show()")
 
 args = parser.parse_args()
 
 for filename in args.infile :
+    
+    cam = os.path.basename(filename).split(".")[0].split("-")[1].upper()
     
     file=open(filename)
     lines=file.readlines()
@@ -70,13 +73,14 @@ for filename in args.infile :
             ax.grid()
             if amp=="D" : ax.set_xlabel(args.x_axis)
 
-            print("|| Amplifier {} rdnoise || {:3.2f} electrons/pixel||".format(amp,np.mean(t["RMS_CCD_"+amp][-3:])))
+            print("|| {}-{} read noise rms = {:3.2f} elec ||".format(cam,amp,np.mean(t["RMS_CCD_"+amp][-3:])))
             
 
         if args.outfile is None :
             args.outfile = name+".png"
         print("saving image as",args.outfile)
         fig.savefig(args.outfile)
-   
-plt.show()
+        
+if not args.batch :
+    plt.show()
 
