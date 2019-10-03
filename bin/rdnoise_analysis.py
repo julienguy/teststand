@@ -5,7 +5,7 @@ import os
 import fitsio
 import numpy as np
 import argparse
-from desispec.preproc import _parse_sec_keyword
+from desispec.preproc import parse_sec_keyword
 from desispec.calibfinder import CalibFinder
 from astropy.time import Time
 
@@ -126,15 +126,15 @@ for f,filename in enumerate(filenames) :
         gain = 1.
         if cfinder is not None and cfinder.haskey("GAIN"+amp) :
             gain=cfinder.value("GAIN"+amp)
-        x[i] = mean(img[_parse_sec_keyword(header["BIASSEC"+amp])],gain=gain); i+=1
-        x[i] = rms_scale*rms(sub[_parse_sec_keyword(header["BIASSEC"+amp])],gain=gain); i+=1
+        x[i] = mean(img[parse_sec_keyword(header["BIASSEC"+amp])],gain=gain); i+=1
+        x[i] = rms_scale*rms(sub[parse_sec_keyword(header["BIASSEC"+amp])],gain=gain); i+=1
         if "ORSEC"+amp in header :
-            x[i] = mean(img[_parse_sec_keyword(header["ORSEC"+amp])],gain=gain); i+=1
-            x[i] = rms_scale*rms(sub[_parse_sec_keyword(header["ORSEC"+amp])],gain=gain); i+=1
+            x[i] = mean(img[parse_sec_keyword(header["ORSEC"+amp])],gain=gain); i+=1
+            x[i] = rms_scale*rms(sub[parse_sec_keyword(header["ORSEC"+amp])],gain=gain); i+=1
         else :
             i += 2
-        x[i] = mean(img[_parse_sec_keyword(header["DATASEC"+amp])],gain=gain); i+=1
-        x[i] = rms_scale*rms(sub[_parse_sec_keyword(header["DATASEC"+amp])],gain=gain); i+=1
+        x[i] = mean(img[parse_sec_keyword(header["DATASEC"+amp])],gain=gain); i+=1
+        x[i] = rms_scale*rms(sub[parse_sec_keyword(header["DATASEC"+amp])],gain=gain); i+=1
         print("assuming gain= {:3.2f} for amp {}, ccd rms= {:3.2f}".format(gain,amp,x[i-1]))
         sys.stdout.flush()
     xx.append(x)
