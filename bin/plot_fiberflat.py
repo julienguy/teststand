@@ -6,11 +6,11 @@ import matplotlib.pyplot as plt
 import argparse
 
 parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
-parser.add_argument('-f','--fiberflat', type = str, default = None, required = True,
+parser.add_argument('-i', '--infile', type = str, default = None, required = True,
                     help = 'path to fiber flat file')
 
 args        = parser.parse_args()
-h=fits.open(args.fiberflat)
+h=fits.open(args.infile)
 
 
 h.info()
@@ -18,7 +18,18 @@ wave=h["WAVELENGTH"].data
 
 plt.figure()
 for fiber in range(h[0].data.shape[0]) :
-    plt.plot(wave,h[0].data[fiber])
+    ok=np.where(h["MASK"].data[fiber]==0)[0]
+    plt.plot(wave,h[0].data[fiber],color="gray",alpha=0.1)
+    if ok.size>1 :
+      plt.plot(wave[ok],h[0].data[fiber,ok])
+
+if "FIBERMAP" in h :
+    plt.figure()
+    mflat=np.median(h[0].data,axis=1)
+    x=h["FIBERMAP"].data["FIBERASSIGN_X"]
+    y=h["FIBERMAP"].data["FIBERASSIGN_Y"]
+    plt.scatter(x,y,c=mflat)
+    plt.colorbar()
 
 if False :
     plt.figure()
