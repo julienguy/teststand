@@ -78,7 +78,7 @@ ivar=ivar.ravel()
 log.info("reading wave and fiber coordinate of pixels from %s"%args.coords)
 coords=pyfits.open(args.coords)
 wave_of_pixels=coords["WAVELENGTH"].data
-fiber_of_pixels=coords["FIBER"].data
+fiber_of_pixels=coords["XFIBER"].data
 
 dfiberdpix = np.median(np.gradient(fiber_of_pixels[image_shape[0]//2]))
 dwavedpix = np.median(np.gradient(wave_of_pixels[:,image_shape[1]//2]))
@@ -295,7 +295,7 @@ while True :
                 log.info("have been %d times through the components, exiting loop"%superloop_nmax)
                 break
         
-        if superloop>0 and current_component==0 :
+        if superloop>0 and current_component==0 and args.ncomp==2 :
             log.info("REORGANISING COMPONENTS")
 
             if superloop==1 : # fit for T1=a*T2+b

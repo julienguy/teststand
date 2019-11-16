@@ -20,6 +20,8 @@ parser.add_argument('--r-path', type=str, default=None, required=True,
 parser.add_argument('--z-path', type=str, default=None, required=True,
     help='Path to z-camera preproc file')
 
+parser.add_argument('-o','--outfile', type=str,default=None,required=False,help="output image file name")
+
 parser.add_argument('--b-line-value', type=float, default=4359.56, required=False,
     help='Value of the emission line for the b-camera')
 
@@ -58,7 +60,8 @@ for c in dic.keys():
     dic[c]['PATH'] = getattr(args,'{}_path'.format(c))
     dic[c]['LINE'] = {'ELE':getattr(args,'{}_line_name'.format(c)), 'LINE':getattr(args,'{}_line_value'.format(c))}
 
-f, ax = plt.subplots(nrows=6, ncols=1, figsize=(10,10))
+
+fig, ax = plt.subplots(nrows=6, ncols=1, figsize=(10,10))
 plt.subplots_adjust(top=0.97)
 
 for i,cam in enumerate(dic.keys()):
@@ -106,4 +109,9 @@ for i,cam in enumerate(dic.keys()):
     ax[2*i+1].legend(loc=1)
 
 plt.suptitle(r'$\mathrm{SP'+str(camName[-1])+'}$',fontsize=20)
+
+if args.outfile is not None :
+    fig.savefig(args.outfile)
+    print("wrote",args.outfile)
+
 plt.show()

@@ -13,7 +13,7 @@ def u(wave,wavemin,wavemax) :
     return 2.*(wave-wavemin)/(wavemax-wavemin)-1.
 
 parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
-parser.add_argument('-p','--psf', type = str, nargs="*", default = None, required = True,
+parser.add_argument('-i','--inpsf', type = str, nargs="*", default = None, required = True,
                     help = 'path to psf files')
 parser.add_argument('--fibers', type=str, default = None, required = False,
                     help = 'defines from_to which fiber to work on. (ex: --fibers=50:60,4 means that only fibers 4, and fibers from 50 to 60 (excluded) will be plotted)')
@@ -44,7 +44,7 @@ yref=None
 nw=50
 u=np.linspace(-1,1,nw)
 nfibers=0
-for filename in args.psf :
+for filename in args.inpsf :
     print(filename)
     psf=pyfits.open(filename)
     kx = "XTRACE"
@@ -86,7 +86,7 @@ for filename in args.psf :
     if xref is None :
         xref=x
         yref=y
-        if(len(args.psf)==1) :
+        if(len(args.inpsf)==1) :
             plt.figure("traces")
             
             if args.image is not None :
@@ -112,18 +112,36 @@ for filename in args.psf :
                 color=None
                 if args.image is not None: color="white"
                 plt.plot(xref[fiber],yref[fiber],lw=1,color=color)
+
+            plt.figure("xtrace")
+            plt.plot(xcoef[:,0],"o-")
+            plt.xlabel("fiber #")
+            plt.ylabel("xccd")
+            
     else :
         plt.figure("delta")
-        plt.subplot(2,1,1)
+        plt.subplot(2,2,1)
         for fiber in range(xref.shape[0]) :
             plt.plot(waveref,x[fiber]-xref[fiber],color=plt.cm.rainbow(fiber/float(len(fibers))))
         plt.xlabel("wavelength")
         plt.ylabel("dx")
         plt.grid()
-        plt.subplot(2,1,2)        
+        plt.subplot(2,2,2)        
         for fiber in range(yref.shape[0]) :
             plt.plot(waveref,y[fiber]-yref[fiber],color=plt.cm.rainbow(fiber/float(len(fibers))))
         plt.xlabel("wavelength")
+        plt.ylabel("dy")
+        plt.grid()
+        plt.subplot(2,2,3)
+        for fiber in range(xref.shape[0]) :
+            plt.plot(xref[fiber],x[fiber]-xref[fiber],color=plt.cm.rainbow(fiber/float(len(fibers))))
+        plt.xlabel("x")
+        plt.ylabel("dx")
+        plt.grid()
+        plt.subplot(2,2,4)        
+        for fiber in range(yref.shape[0]) :
+            plt.plot(xref[fiber],y[fiber]-yref[fiber],color=plt.cm.rainbow(fiber/float(len(fibers))))
+        plt.xlabel("x")
         plt.ylabel("dy")
         plt.grid()
         

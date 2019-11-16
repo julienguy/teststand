@@ -43,7 +43,7 @@ def plot_graph(frame, fibers, opt_err=False, opt_2d=False, label = None, subplot
     spectra     = frame["FLUX"].data
     ivar        = frame["IVAR"].data
     
-    if "MASK" in frame :
+    if ("MASK" in frame) :
         ivar *= (frame["MASK"].data==0)
 
     wave        = frame["WAVELENGTH"].data

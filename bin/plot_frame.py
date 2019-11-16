@@ -12,7 +12,7 @@ import os.path
 from desispec.io import read_fibermap
                
 parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
-parser.add_argument('-f','--frame', type = str, default = None, required = True, nargs="*",
+parser.add_argument('-i','--infile', type = str, default = None, required = True, nargs="*",
                     help = 'path to one or several frame fits files')
 parser.add_argument('--fibers', type=str, default = None, required = False,
                     help = 'defines from_to which fiber to work on. (ex: --fibers=50:60,4 means that only fibers 4, and fibers from 50 to 60 (excluded) will be plotted)')
@@ -31,6 +31,7 @@ parser.add_argument('--xlim',type = str, default=None, help="min,max xlim for pl
 parser.add_argument('--ylim',type = str, default=None, help="min,max ylim for plot")
 parser.add_argument('--labels',type = str, default=None, required = False, nargs="*")
 parser.add_argument('--objtype',type = str, default=None, required = False, help="display fibers with this OBJTYPE")
+parser.add_argument('--focal-plane',action='store_true', help="focal plane image instead of spectra")
 
 log         = get_logger()
 args        = parser.parse_args()
@@ -45,18 +46,40 @@ else :
 
 
 
-if args.labels == None or len(args.labels)<len(args.frame) :
+if args.labels == None or len(args.labels)<len(args.infile) :
     args.labels = []
-    for filename in args.frame :
+    for filename in args.infile :
         args.labels.append(os.path.basename(filename))
 
-for filename,label in zip(args.frame,args.labels) :
+vmin=None
+vmax=None
+first=True
+for filename,label in zip(args.infile,args.labels) :
     frame_file  = pyfits.open(filename)
     
     if args.objtype is not None :
         fmap = read_fibermap(filename)
         fibers = np.where(fmap["OBJTYPE"]==args.objtype)[0]
         print("fibers with OBJTYPE={} : {}".format(args.objtype,fibers))
+
+
+    if args.focal_plane :
+        mflux = np.median(frame_file[0].data,axis=1)
+        fmap=frame_file["FIBERMAP"].data
+        x=fmap["FIBERASSIGN_X"]
+        y=fmap["FIBERASSIGN_Y"]
+        if first :
+            vmin = 0.9*np.median(mflux)
+            vmax = 1.1*np.median(mflux)
+        plt.scatter(x,y,c=mflux,vmin=vmin,vmax=vmax)
+        if first :
+            plt.axis('off')
+            #fig.set_cmap('hot')
+            #fig.axes.get_xaxis().set_visible(False)
+            #fig.axes.get_yaxis().set_visible(False)
+            plt.colorbar()
+        first=False
+        continue
     
     if fibers is None :
         fibers = np.arange(frame_file[0].data.shape[0])

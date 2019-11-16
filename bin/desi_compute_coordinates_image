@@ -69,8 +69,25 @@ wstep=200.
 waves=np.linspace(psf.wmin,psf.wmax,int((psf.wmax-psf.wmin)/wstep))
 fibers=np.arange(psf.nspec)
 # 2d version, same array orientation as image [y,x] or [wave,fiber]
-fibers_2d=np.tile(fibers,(waves.size,1))
+
+#fibers_2d=np.tile(fibers,(waves.size,1))
+
 waves_2d=np.tile(waves,(fibers.size,1)).T 
+
+wave = np.mean(waves)
+xfibers = np.zeros(psf.nspec)
+yfibers = np.zeros(psf.nspec)
+for i,fiber in enumerate(fibers) :
+    xfibers[i],yfibers[i] = psf.xy(fiber,wave)
+#import matplotlib.pyplot as plt
+#plt.plot(fibers,x,"o-")
+#plt.plot(fibers,y,"o-")
+#plt.show()
+
+# we will use for x coordinate the x coordinate of fibers
+# at the central wavelenght.
+# this accommodates for unevenly spaced fibers
+xfibers_2d=np.tile(xfibers,(waves.size,1))
 
 log.info("compute transfo on grid from psf file")
 x_of_fiber_wave=np.zeros((waves.size,fibers.size))
@@ -81,23 +98,26 @@ for i,fiber in enumerate(fibers) :
         x_of_fiber_wave[j,i]=tx
         y_of_fiber_wave[j,i]=ty
 
-fmin=fibers[0]-0.2
-fmax=fibers[-1]+0.2
+xmin=xfibers[0]-0.2
+xmax=xfibers[-1]+0.2
 
-ufibers_2d=2*(fibers_2d-fmin)/(fmax-fmin)-1.
+uxfibers_2d=2*(xfibers_2d-xmin)/(xmax-xmin)-1.
 uwaves_2d=2*(waves_2d-waves[0])/(waves[-1]-waves[0])-1.        
 
-log.info("fit fiber,wave -> x,y with 2D legendre polynomials")
-m=compute_monomials(uwaves_2d,ufibers_2d,degree=args.degree)
+# this does not work for fibers that have different spacing
+
+
+log.info("fit xfibers,wave -> x,y with 2D legendre polynomials")
+m=compute_monomials(uwaves_2d,uxfibers_2d,degree=args.degree)
 coefs_x = compute_coefficients(m,x_of_fiber_wave)
 coefs_y = compute_coefficients(m,y_of_fiber_wave)
 
-log.info("fit x,y -> fiber,wave with 2D legendre polynomials")
+log.info("fit x,y -> xfiber,wave with 2D legendre polynomials")
 uy_of_fiber_wave = 2*y_of_fiber_wave/float(psf.npix_y)-1.
 ux_of_fiber_wave = 2*x_of_fiber_wave/float(psf.npix_x)-1.
 m=compute_monomials(uy_of_fiber_wave,ux_of_fiber_wave,degree=args.degree)
 coefs_w = compute_coefficients(m,waves_2d)
-coefs_f = compute_coefficients(m,fibers_2d)
+coefs_f = compute_coefficients(m,xfibers_2d)
 
 log.info("compute wave and fiber coordinate of all pixels in CCD")
 xx=np.arange(psf.npix_x)
@@ -110,9 +130,10 @@ log.info("compute monomials")
 m=compute_monomials(uyy2d,uxx2d,degree=args.degree)
 log.info("compute products")
 wave_of_pixels=m.T.dot(coefs_w).T
-fiber_of_pixels=m.T.dot(coefs_f).T
+xfiber_of_pixels=m.T.dot(coefs_f).T
 
-hdulist=pyfits.HDUList([pyfits.PrimaryHDU(wave_of_pixels),pyfits.ImageHDU(fiber_of_pixels,name="FIBER")])
+
+hdulist=pyfits.HDUList([pyfits.PrimaryHDU(wave_of_pixels),pyfits.ImageHDU(xfiber_of_pixels,name="XFIBER")])
 hdulist[0].header["EXTNAME"]="WAVELENGTH"
 hdulist.writeto(args.outfile,clobber=True)
 log.info("all transfo done, wrote %s"%(args.outfile))
