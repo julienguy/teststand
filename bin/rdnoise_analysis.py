@@ -61,7 +61,7 @@ xx=[]
 for f,filename in enumerate(filenames) :
     print('reading {} hdu={}'.format(filename,args.camera))
     try: 
-        pheader=fitsio.read_header(filename)
+        pheader=fitsio.read_header(filename,ext=2)
         if "flavor" in pheader :
             if pheader["flavor"].lower().strip() != args.flavor :
                 print("ignore image with flavor='{}'".format(pheader["flavor"]))
