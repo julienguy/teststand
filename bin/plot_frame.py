@@ -34,6 +34,10 @@ parser.add_argument('--objtype',type = str, default=None, required = False, help
 parser.add_argument('--focal-plane',action='store_true', help="focal plane image instead of spectra")
 parser.add_argument('--vmin',type=float, default=None)
 parser.add_argument('--vmax',type=float, default=None)
+parser.add_argument('--normalize',action='store_true', help="normalize counts in focal plane view")
+#parser.add_argument('--iter-fibers',action='store_true', help="iterate on fibers")
+parser.add_argument('--n-brightest',type=int, default=None,help="show the n-brightest fibers (according to first frame in series)")
+parser.add_argument('--resample-lin',type=float, default=None,help="resample to a single wavelength array of this bin size (A)")
 
 log         = get_logger()
 args        = parser.parse_args()
@@ -57,9 +61,19 @@ xx=[]
 yy=[]
 ff=[]
 
+
+
+
+
 first=True
 for filename,label in zip(args.infile,args.labels) :
     frame_file  = pyfits.open(filename)
+
+    if args.n_brightest is not None and first :
+        flux=np.median(frame_file[0].data,axis=1)
+        fibers = np.argsort(flux)[::-1][:args.n_brightest]
+        print("brightest fibers: {}".format(fibers))
+        
     
     if args.objtype is not None :
         fmap = read_fibermap(filename)
@@ -84,10 +98,16 @@ for filename,label in zip(args.infile,args.labels) :
         fibers = np.arange(frame_file[0].data.shape[0])
     plot_graph(frame=frame_file,fibers=fibers,opt_err=args.err,opt_2d=args.image,label=label)  
 
+    first = False
+    
 if args.focal_plane :
     xx=np.hstack(xx)
     yy=np.hstack(yy)
     ff=np.hstack(ff)
+
+    if args.normalize :
+        ff /= np.median(ff)
+    
     if args.vmin is None :
         mf=np.median(ff)
         rms=1.4*np.median(np.abs(ff-mf))
