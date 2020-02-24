@@ -23,6 +23,8 @@ parser.add_argument('--zbest',type = str, default = None, required = False,
                     help = 'zbest file')
 parser.add_argument('--spectype',type = str, default = None, required = False, 
                     help = 'spectype to select')
+parser.add_argument('--rest-frame', action='store_true', 
+                    help = 'show rest-frame wavelength')
 
 
 args        = parser.parse_args()
@@ -33,6 +35,10 @@ if  args.zbest is not None :
     for filename in redrock.templates.find_templates():
         tx = redrock.templates.Template(filename)
         templates[(tx.template_type, tx.sub_type)] = tx
+
+if args.zbest is None and args.rest_frame :
+    args.rest_frame = False
+    print("cannot show rest-frame wavelength without a zbest file")
 
 spectra = []
 for filename in args.infile :
@@ -56,12 +62,17 @@ if targetids is None :
 
 
 lines = {
-    'Halpha'      : 6562.8,
-    'Hbeta'       : 4862.68,
-    'MgII(2804)'  : 2803.5324,
-    'CIII(1909)'  : 1909.,
-    'CIV(eff)'    : 1549.06,
-    'SiIV(1394)'  : 1393.76018,
+    'Ha'      : 6562.8,
+    'Hb'       : 4862.68,
+    'Hg'       : 4340.464,
+    'Hd'       : 4101.734,
+    'OIII-b'       :  5006.843,
+    'OIII-a'       : 4958.911,
+    'MgII'    : 2799.49,
+    'OII'         : 3728,
+    'CIII'  : 1909.,
+    'CIV'    : 1549.06,
+    'SiIV'  : 1393.76018,
     'LYA'         : 1215.67,
     'LYB'         : 1025.72
 }
@@ -96,6 +107,11 @@ for tid in targetids :
                 for j in jj :
                     print("{} {}".format(k,spec.fibermap[k][j]))
 
+
+        wavescale=1.
+        if args.rest_frame :
+            wavescale = 1./(1+zbest['Z'][j])
+            
         for j in jj :
             for b in spec._bands :
                 
@@ -104,9 +120,9 @@ for tid in targetids :
                 if args.rebin is not None and args.rebin>0:
                     rwave=np.linspace(spec.wave[b][0],spec.wave[b][-1],spec.wave[b].size//args.rebin)
                     rflux,rivar = resample_flux(rwave,spec.wave[b],spec.flux[b][j],ivar=spec.ivar[b][j]*(spec.mask[b][j]==0))
-                    plt.plot(rwave,rflux)
+                    plt.plot(wavescale*rwave,rflux)
                 else :
-                    plt.plot(spec.wave[b][i],spec.flux[b][j,i])
+                    plt.plot(wavescale*spec.wave[b][i],spec.flux[b][j,i])
                 
                 c=np.polyfit(spec.wave[b][i],spec.flux[b][j,i],3)
                 pol=np.poly1d(c)(spec.wave[b][i])
@@ -114,15 +130,18 @@ for tid in targetids :
 
     if zbest is not None :
         for band in spectra[0].bands:
-            plt.plot(spectra[0].wave[band],model_flux[band],"-",alpha=0.6)
+            plt.plot(wavescale*spectra[0].wave[band],model_flux[band],"-",alpha=0.6)
             for elem in lines :
                 line=(1+zbest['Z'][j])*lines[elem]
                 if line>spectra[0].wave[band][0] and line<spectra[0].wave[band][-1] :
-                    plt.axvline(line,color="red",linestyle="--",alpha=0.4)
-                    y=np.interp(line,spectra[0].wave[band],model_flux[band])
+                    plt.axvline(wavescale*line,color="red",linestyle="--",alpha=0.4)
+                    y=np.interp(wavescale*line,wavescale*spectra[0].wave[band],model_flux[band])
                     #plt.plot([line,line],[0,y],"--",alpha=0.8,color="red")
-                    plt.text(line+100,y*1.1,elem,color="red")
-    plt.xlabel("wavelength [A]")
+                    plt.text(wavescale*(line+60),y*1.1,elem.split("-")[0],color="red")
+    if args.rest_frame :
+        plt.xlabel("rest-frame wavelength [A]")
+    else :
+        plt.xlabel("wavelength [A]")
     props = dict(boxstyle='round', facecolor='yellow', alpha=0.2)
     bla="TID = {}\n".format(zbest['TARGETID'][j])
     bla+="Z  = {:4.3f}".format(zbest['Z'][j])
