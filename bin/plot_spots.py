@@ -4,7 +4,7 @@ import numpy as np
 import astropy.io.fits as pyfits
 import matplotlib.pyplot as plt
 from numpy.polynomial.legendre import legval
-from teststand.graph_tools import parse_fibers
+from desispec.qproc.util import parse_fibers
 import sys
 import argparse
 import string

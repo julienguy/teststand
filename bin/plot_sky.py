@@ -13,12 +13,14 @@ for filename in sys.argv[1:] :
     wave=h["WAVELENGTH"].data
     sky=h["SKY"].data
     ivar=h["IVAR"].data
+
+    fiber=100
     plt.figure("sky")
-    for fiber in range(sky.shape[0]) :
-        plt.plot(wave,sky[fiber])
+    #for fiber in range(sky.shape[0]) :
+    plt.plot(wave,sky[fiber])
     plt.figure("ivar")
-    for fiber in range(sky.shape[0]) :
-        plt.plot(wave,ivar[fiber])
+    #for fiber in range(sky.shape[0]) :
+    plt.plot(wave,ivar[fiber])
 #plt.legend()
 
 plt.show()
