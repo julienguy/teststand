@@ -4,7 +4,7 @@ import numpy as np
 import astropy.io.fits as pyfits
 import matplotlib.pyplot as plt
 from numpy.polynomial.legendre import legval
-from teststand.graph_tools         import parse_fibers
+from desispec.qproc.util import parse_fibers
 import sys
 import argparse
 import fitsio
@@ -70,15 +70,15 @@ for filename in args.inpsf :
     
     wave_is_diff=np.max(np.abs(wave-waveref))>0.05
     
-    for fiber in fibers :
+    for i,fiber in enumerate(fibers) :
         
         #if fiber%10==0: print(fiber)
         if wave_is_diff :
-            x[fiber] = np.interp(waveref,wave,legval(u, xcoef[fiber]))
-            y[fiber] = np.interp(waveref,wave,legval(u, ycoef[fiber]))
+            x[i] = np.interp(waveref,wave,legval(u, xcoef[fiber]))
+            y[i] = np.interp(waveref,wave,legval(u, ycoef[fiber]))
         else :
-            x[fiber] = legval(u, xcoef[fiber])
-            y[fiber] = legval(u, ycoef[fiber])
+            x[i] = legval(u, xcoef[fiber])
+            y[i] = legval(u, ycoef[fiber])
         #print(fiber,"x=",x[fiber])
         #print(fiber,"y=",y[fiber])
         

@@ -47,7 +47,7 @@ wave=np.linspace(psf.wmin,psf.wmax,15)
 resol=[]
 
 fibers=np.arange(psf.nspec)
-if len(fibers)>30 :
+if len(fibers)>41 :
     fibers=np.linspace(0,len(fibers)-1,30).astype(int)
     
 for fiber in fibers :    

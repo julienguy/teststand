@@ -5,8 +5,8 @@ import argparse
 import astropy.io.fits as pyfits
 import matplotlib.pyplot as plt
 import numpy as np
-from teststand.graph_tools         import plot_graph,parse_fibers
-from desiutil.log                  import get_logger
+from desispec.qproc.util import parse_fibers
+from desiutil.log import get_logger
 import os.path
 			
 parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)

@@ -30,6 +30,8 @@ parser.add_argument('--only-mean',action='store_true')
 parser.add_argument('--legend',action='store_true')
 parser.add_argument('--title',type = str, default = None, required = False, help="figure title")
 parser.add_argument('-o','--output',type = str, default = None, required = False, help="filename to save figure as png")
+parser.add_argument('--first-fiber',type = int, default = None, required = False)
+parser.add_argument('--last-fiber',type = int, default = None, required = False)
 
 
 args = parser.parse_args()
@@ -57,26 +59,32 @@ else :
     tmp=["blue","red","brown"]
     for i,filename in enumerate(args.input) :
         colors.append(tmp[i%3])
-    
 
         
 for filename,label,color in zip(args.input,labels,colors) :
     tmp=np.loadtxt(filename)
     nfibers=tmp.shape[1]-1
+    begin=1 # first is wavelength
+    end=tmp.shape[1]
+    if args.first_fiber is not None :
+        begin=args.first_fiber+1
+    if args.last_fiber is not None :
+        end=args.last_fiber+2 # (+1 for wave, +1 for last -> end)
+    
     wave=tmp[:,0]
+    res=tmp[:,begin:end]
     if args.mean :
-        mres=np.mean(tmp[:,1:],axis=1)
-        rms=np.std(tmp[:,1:],axis=1)
-        maxres=np.max(tmp[:,1:],axis=1)
-        minres=np.min(tmp[:,1:],axis=1)
+        mres=np.median(res,axis=1)
+        rms=np.std(res,axis=1)
+        maxres=np.max(res,axis=1)
+        minres=np.min(res,axis=1)
         if not args.only_mean:
             plt.fill_between(wave,minres,maxres,color=color,alpha=0.4)
         plt.plot(wave,mres,label=label,color=color)
         
     else :
-        for fiber in range(nfibers) :
-            res=tmp[:,fiber+1]
-            plt.plot(wave,res)
+        for fiber in range(res.shape[1]) :
+            plt.plot(wave,res[:,fiber])
 
 if args.zemax is not None :
     first=True
@@ -84,7 +92,7 @@ if args.zemax is not None :
         tmp=np.loadtxt(filename)
         nfibers=tmp.shape[1]-1
         wave=tmp[:,0]
-        mres=np.mean(tmp[:,1:],axis=1)
+        mres=np.mean(res,axis=1)
         if first : 
             label = "ZEMAX model"
             first=False

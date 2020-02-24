@@ -6,11 +6,12 @@ import argparse
 import astropy.io.fits as pyfits
 import matplotlib.pyplot as plt
 import numpy as np
-from teststand.graph_tools         import plot_graph,parse_fibers
-from desiutil.log                  import get_logger
+from teststand.util import plot
+from desispec.qproc.util import parse_fibers
+from desiutil.log import get_logger
 import os.path
 from desispec.io import read_fibermap
-               
+
 parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
 parser.add_argument('-i','--infile', type = str, default = None, required = True, nargs="*",
                     help = 'path to one or several frame fits files')
@@ -32,6 +33,14 @@ parser.add_argument('--ylim',type = str, default=None, help="min,max ylim for pl
 parser.add_argument('--labels',type = str, default=None, required = False, nargs="*")
 parser.add_argument('--objtype',type = str, default=None, required = False, help="display fibers with this OBJTYPE")
 parser.add_argument('--focal-plane',action='store_true', help="focal plane image instead of spectra")
+parser.add_argument('--vmin',type=float, default=None)
+parser.add_argument('--vmax',type=float, default=None)
+parser.add_argument('--normalize',action='store_true', help="normalize counts in focal plane view")
+#parser.add_argument('--iter-fibers',action='store_true', help="iterate on fibers")
+parser.add_argument('--brightest',type=int, default=None,help="show the n-brightest fibers (according to first frame in series)")
+parser.add_argument('--dwave',type=float, default=None,help="resample to a single wavelength array of this bin size (A)")
+parser.add_argument('--target-type', type=str, default = None, required = False,
+                    help = 'plot targets of this type')
 
 log         = get_logger()
 args        = parser.parse_args()
@@ -51,39 +60,88 @@ if args.labels == None or len(args.labels)<len(args.infile) :
     for filename in args.infile :
         args.labels.append(os.path.basename(filename))
 
-vmin=None
-vmax=None
+xx=[]
+yy=[]
+ff=[]
+
+
+
+
+
 first=True
 for filename,label in zip(args.infile,args.labels) :
     frame_file  = pyfits.open(filename)
-    
+
+    if args.brightest is not None and first :
+        flux=np.median(frame_file[0].data,axis=1)
+        fibers = np.argsort(flux)[::-1][:args.brightest]
+        print("brightest fibers: {}".format(fibers))
+        
+
+
     if args.objtype is not None :
         fmap = read_fibermap(filename)
         fibers = np.where(fmap["OBJTYPE"]==args.objtype)[0]
         print("fibers with OBJTYPE={} : {}".format(args.objtype,fibers))
 
+    if args.target_type is not None :
+        fmap = read_fibermap(filename)
+
+        target_colnames, target_masks, survey = main_cmx_or_sv(fibermap)
+        desi_target = fibermap[target_colnames[0]]
+        desi_mask = target_masks[0]
+        
+        ttype = args.target_type.upper()
+        selection = np.zeros(len(fmap),dtype=bool)
+        if ttype.find("STD")>=0 :
+            for bla in ['STD_GAIA','SV0_STD_FAINT','SV0_STD_BRIGHT','STD_TEST','STD_CALSPEC','STD_DITHER','STD_FAINT','STD_BRIGHT'] :
+                if bla in desi_mask.names():
+                    yes |= (desi_target & desi_mask[bla]) != 0
+        elif ttype.find("QSO")>=0 :
+            for bla in ['QSO'] :
+                if bla in desi_mask.names():
+                    yes |= (desi_target & desi_mask[bla]) != 0
+        fibers = np.where(fmap["OBJTYPE"]==args.objtype)[0]
+        print("fibers with OBJTYPE={} : {}".format(args.objtype,fibers))
+
+    
 
     if args.focal_plane :
+        
         mflux = np.median(frame_file[0].data,axis=1)
+        n1=frame_file[0].data.shape[1]
+        #mflux = np.mean(frame_file[0].data[:,n1//2-500:n1//2+500],axis=1)
         fmap=frame_file["FIBERMAP"].data
         x=fmap["FIBERASSIGN_X"]
         y=fmap["FIBERASSIGN_Y"]
-        if first :
-            vmin = 0.9*np.median(mflux)
-            vmax = 1.1*np.median(mflux)
-        plt.scatter(x,y,c=mflux,vmin=vmin,vmax=vmax)
-        if first :
-            plt.axis('off')
-            #fig.set_cmap('hot')
-            #fig.axes.get_xaxis().set_visible(False)
-            #fig.axes.get_yaxis().set_visible(False)
-            plt.colorbar()
-        first=False
+        xx.append(x)
+        yy.append(y)
+        ff.append(mflux)
         continue
-    
+
     if fibers is None :
         fibers = np.arange(frame_file[0].data.shape[0])
-    plot_graph(frame=frame_file,fibers=fibers,opt_err=args.err,opt_2d=args.image,label=label)
+    plot(frame=frame_file,fibers=fibers,opt_err=args.err,opt_2d=args.image,label=label,dwave=args.dwave)  
+
+    first = False
+    
+if args.focal_plane :
+    xx=np.hstack(xx)
+    yy=np.hstack(yy)
+    ff=np.hstack(ff)
+
+    if args.normalize :
+        ff /= np.median(ff)
+    
+    if args.vmin is None :
+        mf=np.median(ff)
+        rms=1.4*np.median(np.abs(ff-mf))
+        args.vmin = mf-3*rms
+        args.vmax = mf+3*rms
+        
+    plt.scatter(xx,yy,c=ff,vmin=args.vmin,vmax=args.vmax)
+    plt.axis('off')
+    plt.colorbar()
 
 if args.log :
     subplot.set_yscale("log")
