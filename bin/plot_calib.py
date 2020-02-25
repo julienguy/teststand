@@ -5,8 +5,10 @@ import numpy as np
 
 import astropy.io.fits as pyfits
 import matplotlib.pyplot as plt
+import desimodel.io
+from specter.throughput import ObjType
 
-# example: plot_calib.py fluxcalib-*-00044565.fits  /project/projectdirs/desi/datachallenge/reference_runs/19.9/spectro/redux/mini/exposures/20200411/00000041/calib-*4-00000041.fits
+# example: plot_calib.py fluxcalib-*-00044565.fits
 
 cmap = plt.get_cmap("tab10")
 colors = cmap(np.linspace(0,1,10))
@@ -68,11 +70,22 @@ for filename in sys.argv[1:] :
     else :
         labels.append(label)
 
-    if sim :        
-        plt.plot(wave,cal,label=label,color="gray",alpha=0.5)
-    else :
-        plt.plot(wave,cal,label=label,color=color)
+    plt.plot(wave,cal,label=label,color=color)
 
+
+if True :
+    wave=np.linspace(3500,10000.,(10000-3500+1))
+    for camera in ['b', 'r', 'z']:
+        thru = desimodel.io.load_throughput(camera)
+        t=thru(wave,objtype=ObjType.STAR, airmass=1.1)
+        ii=np.where(t>0)[0]
+        b=ii[0]
+        e=ii[-1]
+        label=None
+        if camera=="b" : label="DESIMODEL"
+        plt.plot(wave[b:e],t[b:e],c="gray",alpha=0.5,label=label)
+
+        
 plt.legend(loc="upper left")
 plt.xlabel("Wavelength (A)")
 plt.ylabel("Throughput (inc. fiber aperture loss)")
